@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	Port string
+	Port        string
+	DatabaseURL string
 }
 
 func LoadConfig() Config {
@@ -23,7 +24,13 @@ func LoadConfig() Config {
 		port = "8080"
 	}
 
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Println("DATABASE_URL is not set")
+	}
+
 	return Config{
-		Port: port,
+		Port:        port,
+		DatabaseURL: databaseURL,
 	}
 }
