@@ -3,10 +3,13 @@ package main
 import (
 	"net/http"
 
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	cfg := config.LoadConfig()
+
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
@@ -22,5 +25,5 @@ func main() {
 		})
 	})
 
-	router.Run(":8080")
+	router.Run(":" + cfg.Port)
 }
