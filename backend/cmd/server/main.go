@@ -12,6 +12,7 @@ func main() {
 	cfg := config.LoadConfig()
 
 	db := database.Connect(cfg.DatabaseURL)
+	database.Migrate(db)
 
 	router := gin.Default()
 
