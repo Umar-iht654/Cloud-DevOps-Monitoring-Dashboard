@@ -23,6 +23,9 @@ func main() {
 	// This creates the authentication handler and gives it database access plus the JWT secret.
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret)
 
+	// This creates the service handler and gives it database access.
+	serviceHandler := handlers.NewServiceHandler(db)
+
 	// This creates a new Gin router with default logging and recovery middleware.
 	router := gin.Default()
 
@@ -102,6 +105,27 @@ func main() {
 
 	// This registers the protected route that returns the currently logged-in user.
 	protectedAuth.GET("/me", authHandler.Me)
+
+	// This creates a services route group under /api/services.
+	services := api.Group("/services")
+
+	// This applies JWT authentication middleware to all service routes.
+	services.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+	// This registers the protected route for creating a monitored service.
+	services.POST("", serviceHandler.CreateService)
+
+	// This registers the protected route for getting all monitored services owned by the logged-in user.
+	services.GET("", serviceHandler.GetServices)
+
+	// This registers the protected route for getting one monitored service by ID.
+	services.GET("/:id", serviceHandler.GetService)
+
+	// This registers the protected route for updating one monitored service by ID.
+	services.PUT("/:id", serviceHandler.UpdateService)
+
+	// This registers the protected route for deleting one monitored service by ID.
+	services.DELETE("/:id", serviceHandler.DeleteService)
 
 	// This starts the backend server using the configured port.
 	router.Run(":" + cfg.Port)
