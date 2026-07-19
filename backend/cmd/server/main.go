@@ -5,56 +5,104 @@ import (
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/config"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/database"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/handlers"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	// This loads environment variables such as PORT, DATABASE_URL and JWT_SECRET.
 	cfg := config.LoadConfig()
 
+	// This connects the backend to the PostgreSQL database.
 	db := database.Connect(cfg.DatabaseURL)
+
+	// This creates or updates the database tables using the GORM models.
 	database.Migrate(db)
 
+	// This creates the authentication handler and gives it database access plus the JWT secret.
+	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret)
+
+	// This creates a new Gin router with default logging and recovery middleware.
 	router := gin.Default()
 
+	// This creates a public health check route for checking if the backend is running.
 	router.GET("/health", func(c *gin.Context) {
+		// This returns a successful JSON response for the health check.
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
 			"service": "cloud-devops-monitoring-backend",
 		})
 	})
 
+	// This creates a public API status route.
 	router.GET("/api/status", func(c *gin.Context) {
+		// This returns a simple JSON message confirming the API is running.
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Backend API is running",
 		})
 	})
 
+	// This creates a public route to test whether the database connection is healthy.
 	router.GET("/api/db-status", func(c *gin.Context) {
+		// This gets the underlying SQL database connection from GORM.
 		sqlDB, err := db.DB()
 
+		// This checks whether GORM failed to provide the SQL database connection.
 		if err != nil {
+			// This returns a 500 response if the database connection cannot be accessed.
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Failed to access database connection",
 			})
+
+			// This stops the route handler after the error response.
 			return
 		}
 
+		// This sends a ping to PostgreSQL to check if the database is reachable.
 		err = sqlDB.Ping()
 
+		// This checks whether the database ping failed.
 		if err != nil {
+			// This returns a 500 response if PostgreSQL is not reachable.
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Database is not reachable",
 			})
+
+			// This stops the route handler after the error response.
 			return
 		}
 
+		// This returns a successful response if the database connection is healthy.
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
 			"message": "Database connection is healthy",
 		})
 	})
 
+	// This creates a route group so all API routes start with /api.
+	api := router.Group("/api")
+
+	// This creates an authentication route group under /api/auth.
+	auth := api.Group("/auth")
+
+	// This registers the public user registration route.
+	auth.POST("/register", authHandler.Register)
+
+	// This registers the public user login route.
+	auth.POST("/login", authHandler.Login)
+
+	// This creates a separate auth group for routes that require a valid JWT token.
+	protectedAuth := auth.Group("/")
+
+	// This applies the JWT authentication middleware to the protected auth routes.
+	protectedAuth.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+	// This registers the protected route that returns the currently logged-in user.
+	protectedAuth.GET("/me", authHandler.Me)
+
+	// This starts the backend server using the configured port.
 	router.Run(":" + cfg.Port)
 }
