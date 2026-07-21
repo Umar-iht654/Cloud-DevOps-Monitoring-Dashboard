@@ -30,6 +30,9 @@ func main() {
 	// This creates the health check handler and gives it database access.
 	healthCheckHandler := handlers.NewHealthCheckHandler(db)
 
+	// This creates the dashboard handler and gives it database access.
+	dashboardHandler := handlers.NewDashboardHandler(db)
+
 	// This creates the background health checker and gives it database access.
 	healthChecker := worker.NewHealthChecker(db)
 
@@ -142,6 +145,15 @@ func main() {
 
 	// This registers the protected route for getting calculated summary stats for one service.
 	services.GET("/:id/summary", healthCheckHandler.GetServiceSummary)
+
+	// This creates a dashboard route group under /api/dashboard.
+	dashboard := api.Group("/dashboard")
+
+	// This applies JWT authentication middleware to all dashboard routes.
+	dashboard.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+	// This registers the protected route for getting dashboard summary stats.
+	dashboard.GET("/summary", dashboardHandler.GetSummary)
 
 	// This starts the backend server using the configured port.
 	router.Run(":" + cfg.Port)
