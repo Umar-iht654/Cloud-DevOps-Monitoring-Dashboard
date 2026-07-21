@@ -27,6 +27,9 @@ func main() {
 	// This creates the service handler and gives it database access.
 	serviceHandler := handlers.NewServiceHandler(db)
 
+	// This creates the health check handler and gives it database access.
+	healthCheckHandler := handlers.NewHealthCheckHandler(db)
+
 	// This creates the background health checker and gives it database access.
 	healthChecker := worker.NewHealthChecker(db)
 
@@ -133,6 +136,12 @@ func main() {
 
 	// This registers the protected route for deleting one monitored service by ID.
 	services.DELETE("/:id", serviceHandler.DeleteService)
+
+	// This registers the protected route for getting recent health checks for one service.
+	services.GET("/:id/health-checks", healthCheckHandler.GetHealthChecks)
+
+	// This registers the protected route for getting calculated summary stats for one service.
+	services.GET("/:id/summary", healthCheckHandler.GetServiceSummary)
 
 	// This starts the backend server using the configured port.
 	router.Run(":" + cfg.Port)
