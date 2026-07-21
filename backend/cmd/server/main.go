@@ -7,6 +7,7 @@ import (
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/database"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/handlers"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/middleware"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/worker"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,6 +26,12 @@ func main() {
 
 	// This creates the service handler and gives it database access.
 	serviceHandler := handlers.NewServiceHandler(db)
+
+	// This creates the background health checker and gives it database access.
+	healthChecker := worker.NewHealthChecker(db)
+
+	// This starts the health checker in a goroutine so it runs in the background while the API server runs.
+	go healthChecker.Start()
 
 	// This creates a new Gin router with default logging and recovery middleware.
 	router := gin.Default()
