@@ -2,12 +2,14 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/config"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/database"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/handlers"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/middleware"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/worker"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,6 +43,27 @@ func main() {
 
 	// This creates a new Gin router with default logging and recovery middleware.
 	router := gin.Default()
+
+	// This adds CORS middleware so approved frontend origins can call the backend from the browser.
+	router.Use(cors.New(cors.Config{
+		// This allows requests from the frontend URLs defined in the environment config.
+		AllowOrigins: cfg.FrontendURLs,
+
+		// This allows the frontend to use the HTTP methods needed by the API.
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+
+		// This allows the frontend to send JSON and JWT Authorization headers.
+		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
+
+		// This allows the browser to read the Content-Length response header if needed.
+		ExposeHeaders: []string{"Content-Length"},
+
+		// This disables cookie-based cross-origin credentials because we are using Bearer tokens.
+		AllowCredentials: false,
+
+		// This tells the browser how long it can cache the CORS preflight response.
+		MaxAge: 12 * time.Hour,
+	}))
 
 	// This creates a public health check route for checking if the backend is running.
 	router.GET("/health", func(c *gin.Context) {
