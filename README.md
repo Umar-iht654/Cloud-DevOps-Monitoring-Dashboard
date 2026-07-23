@@ -42,7 +42,7 @@ This project demonstrates practical backend development, DevOps fundamentals, cl
   - Visualise reliability and system metrics with Grafana.
 
 - **Dockerised Setup**
-  - Run the full application locally using Docker Compose.
+  - PostgreSQL currently runs locally using Docker Compose, with frontend and backend containerisation planned.
 
 ## Tech Stack
 
@@ -74,6 +74,10 @@ The application will use the following main models:
 - **HealthCheck** — stores each recorded check, including status, HTTP status code, response time and timestamp.
 - **Alert** — stores downtime alerts and notification history.
 - **Incident** — stores service failure events and recovery details.
+
+## Current Progress
+
+The authentication system, service management API, background health checker, dashboard summary, health-check history and React frontend have been implemented. PostgreSQL currently runs through Docker Compose. Prometheus, Grafana, full application containerisation, CI/CD and cloud deployment remain in development.
 
 ## Development Plan
 
