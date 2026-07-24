@@ -108,6 +108,7 @@ The MVP includes:
 - Health check history
 - Uptime percentage calculation
 - Dashboard
+- alerts
 - Service detail pages
 - Docker Compose setup
 - Basic Prometheus metrics
@@ -117,7 +118,6 @@ The MVP includes:
 
 - Public status page
 - Incident timeline
-- Email alerts
 - Slack or Discord alerts
 - CSV report export
 - Cloud storage for reports
