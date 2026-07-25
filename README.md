@@ -1,4 +1,4 @@
-# Cloud DevOps Monitoring Dashboard
+# Cloud Service Monitoring Dashboard
 
 A Dockerised cloud monitoring platform for tracking service uptime, response times, failures and reliability metrics using Go, PostgreSQL, Prometheus and Grafana.
 
