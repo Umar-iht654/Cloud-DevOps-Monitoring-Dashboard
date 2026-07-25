@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../api/client";
 import { getDashboardSummary } from "../api/dashboard";
 import { getServices, getServiceSummary } from "../api/services";
@@ -22,6 +22,17 @@ import type { DashboardSummary, Service, ServiceSummary } from "../types/api";
 import { formatDateTime, formatMilliseconds, formatPercentage } from "../utils/formatters";
 
 export function DashboardPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routeFeedback = location.state as {
+    deleted?: boolean;
+    deletedName?: string;
+  } | null;
+  const [successMessage] = useState(
+    routeFeedback?.deleted
+      ? `${routeFeedback.deletedName || "Service"} was deleted successfully.`
+      : "",
+  );
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [serviceSummaries, setServiceSummaries] = useState<Record<number, ServiceSummary>>({});
@@ -98,6 +109,11 @@ export function DashboardPage() {
       requestVersion.current += 1;
     };
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!routeFeedback?.deleted) return;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, navigate, routeFeedback?.deleted]);
 
   const healthMessage = loading
     ? "Syncing the latest telemetry"
@@ -177,6 +193,16 @@ export function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {successMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="notice-enter mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+        >
+          {successMessage}
+        </div>
+      )}
 
       {loading ? (
         <DashboardSkeleton />

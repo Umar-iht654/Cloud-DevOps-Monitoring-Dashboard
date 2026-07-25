@@ -1,5 +1,5 @@
-import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { FullPageLoader } from "./components/ui/FullPageLoader";
 import { AuthProvider } from "./context/AuthContext";
@@ -21,9 +21,35 @@ const ServiceDetailPage = lazy(() =>
   import("./pages/ServiceDetailPage").then((module) => ({ default: module.ServiceDetailPage })),
 );
 
+function RouteMetadata() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const pageTitle =
+      pathname === "/login"
+        ? "Sign in"
+        : pathname === "/register"
+          ? "Create account"
+          : pathname === "/dashboard" || pathname === "/"
+            ? "Service health"
+            : pathname === "/services/new"
+              ? "Add service"
+              : pathname.endsWith("/edit")
+                ? "Edit service"
+                : /^\/services\/[^/]+$/.test(pathname)
+                  ? "Service details"
+                  : "Page not found";
+
+    document.title = `${pageTitle} | Cloud Monitor`;
+  }, [pathname]);
+
+  return null;
+}
+
 function App() {
   return (
     <AuthProvider>
+      <RouteMetadata />
       <Suspense fallback={<FullPageLoader label="Loading page" />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

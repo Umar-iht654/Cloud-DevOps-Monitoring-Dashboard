@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../api/client";
 import { getService, updateService } from "../api/services";
@@ -16,29 +16,49 @@ export function EditServicePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const requestVersionRef = useRef(0);
+  const submitInFlightRef = useRef(false);
 
-  useEffect(() => {
-    if (!id) return;
+  const loadService = useCallback(async () => {
+    const currentRequest = ++requestVersionRef.current;
+    setLoading(true);
+    setLoadError("");
 
-    getService(id)
-      .then(({ data }) => {
-        const service = data.service;
-        setInitialValues({
-          name: service.name,
-          url: service.url,
-          expected_status_code: service.expected_status_code,
-          slow_threshold_ms: service.slow_threshold_ms,
-          check_interval_seconds: service.check_interval_seconds,
-        });
-      })
-      .catch((requestError) => {
-        setLoadError(getApiErrorMessage(requestError, "Unable to load the service."));
-      })
-      .finally(() => setLoading(false));
+    if (!id) {
+      setLoadError("A service ID is required to edit this service.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data } = await getService(id);
+      if (currentRequest !== requestVersionRef.current) return;
+      const service = data.service;
+      setInitialValues({
+        name: service.name,
+        url: service.url,
+        expected_status_code: service.expected_status_code,
+        slow_threshold_ms: service.slow_threshold_ms,
+        check_interval_seconds: service.check_interval_seconds,
+      });
+    } catch (requestError) {
+      if (currentRequest !== requestVersionRef.current) return;
+      setLoadError(getApiErrorMessage(requestError, "Unable to load the service."));
+    } finally {
+      if (currentRequest === requestVersionRef.current) setLoading(false);
+    }
   }, [id]);
 
+  useEffect(() => {
+    void loadService();
+    return () => {
+      requestVersionRef.current += 1;
+    };
+  }, [loadService]);
+
   const handleSubmit = async (values: ServiceInput) => {
-    if (!id) return;
+    if (!id || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     setSubmitting(true);
     setError("");
 
@@ -51,15 +71,26 @@ export function EditServicePage() {
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to update the service."));
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
-      <Link to={id ? `/services/${id}` : "/dashboard"} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900">
+      <Link
+        to={id ? `/services/${id}` : "/dashboard"}
+        aria-disabled={submitting}
+        tabIndex={submitting ? -1 : undefined}
+        onClick={(event) => {
+          if (submitting) event.preventDefault();
+        }}
+        className={`inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900 ${
+          submitting ? "pointer-events-none opacity-50" : ""
+        }`}
+      >
         <ArrowLeftIcon className="h-4 w-4" />
-        Back to service
+        {id ? "Back to service" : "Back to dashboard"}
       </Link>
 
       <div className="mb-8 mt-5">
@@ -71,15 +102,21 @@ export function EditServicePage() {
       {loading ? (
         <InlineLoader label="Loading service" />
       ) : loadError || !initialValues ? (
-        <ErrorState message={loadError || "Service not found."} />
+        <ErrorState
+          title="Service unavailable"
+          message={loadError || "Service not found."}
+          onRetry={id ? () => void loadService() : undefined}
+        />
       ) : (
         <ServiceForm
           initialValues={initialValues}
           submitting={submitting}
           submitLabel="Save changes"
+          submittingLabel="Saving changes…"
           error={error}
           onSubmit={handleSubmit}
           onCancel={() => navigate(`/services/${id}`)}
+          onValuesChange={() => setError("")}
         />
       )}
     </div>

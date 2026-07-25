@@ -43,6 +43,9 @@ export function ServiceDetailPage() {
   const [checksError, setChecksError] = useState("");
   const requestVersion = useRef(0);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+  const deleteDialogRef = useRef<HTMLElement>(null);
+  const deletingRef = useRef(false);
   const routeFeedback = location.state as { created?: boolean; updated?: boolean } | null;
   const [successMessage] = useState(
     routeFeedback?.created
@@ -141,22 +144,58 @@ export function ServiceDetailPage() {
   }, [location.pathname, navigate, routeFeedback?.created, routeFeedback?.updated]);
 
   useEffect(() => {
+    deletingRef.current = deleting;
+    if (deleting && deleteDialogOpen) deleteDialogRef.current?.focus();
+  }, [deleteDialogOpen, deleting]);
+
+  useEffect(() => {
     if (!deleteDialogOpen) return;
 
+    const previousOverflow = document.body.style.overflow;
+    const deleteTrigger = deleteTriggerRef.current;
+    document.body.style.overflow = "hidden";
     deleteCancelRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !deleting) setDeleteDialogOpen(false);
+      if (event.key === "Escape" && !deletingRef.current) {
+        setDeleteDialogOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !deleteDialogRef.current) return;
+      const focusable = Array.from(
+        deleteDialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [deleteDialogOpen, deleting]);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      deleteTrigger?.focus();
+    };
+  }, [deleteDialogOpen]);
 
   const handleDelete = async () => {
     if (!id || !service) return;
     setDeleting(true);
     try {
       await deleteService(id);
-      navigate("/dashboard", { replace: true });
+      navigate("/dashboard", {
+        replace: true,
+        state: { deleted: true, deletedName: service.name },
+      });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to delete the service."));
       setDeleteDialogOpen(false);
@@ -282,6 +321,7 @@ export function ServiceDetailPage() {
             Edit
           </Link>
           <button
+            ref={deleteTriggerRef}
             type="button"
             onClick={() => setDeleteDialogOpen(true)}
             disabled={deleting}
@@ -360,11 +400,14 @@ export function ServiceDetailPage() {
             }}
           />
           <section
+            ref={deleteDialogRef}
+            tabIndex={-1}
             role="alertdialog"
             aria-modal="true"
+            aria-busy={deleting}
             aria-labelledby="delete-service-title"
             aria-describedby="delete-service-description"
-            className="notice-enter relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-7"
+            className="notice-enter relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl focus:outline-none sm:p-7"
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
               <TrashIcon className="h-6 w-6" />

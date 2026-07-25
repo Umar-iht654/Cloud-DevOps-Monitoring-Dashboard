@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../api/client";
 import { createService } from "../api/services";
@@ -10,8 +10,11 @@ export function AddServicePage() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const submitInFlightRef = useRef(false);
 
   const handleSubmit = async (values: ServiceInput) => {
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     setSubmitting(true);
     setError("");
 
@@ -24,13 +27,24 @@ export function AddServicePage() {
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create the service."));
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
-      <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900">
+      <Link
+        to="/dashboard"
+        aria-disabled={submitting}
+        tabIndex={submitting ? -1 : undefined}
+        onClick={(event) => {
+          if (submitting) event.preventDefault();
+        }}
+        className={`inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900 ${
+          submitting ? "pointer-events-none opacity-50" : ""
+        }`}
+      >
         <ArrowLeftIcon className="h-4 w-4" />
         Back to dashboard
       </Link>
@@ -46,9 +60,11 @@ export function AddServicePage() {
       <ServiceForm
         submitting={submitting}
         submitLabel="Start monitoring"
+        submittingLabel="Starting monitoring…"
         error={error}
         onSubmit={handleSubmit}
         onCancel={() => navigate("/dashboard")}
+        onValuesChange={() => setError("")}
       />
     </div>
   );

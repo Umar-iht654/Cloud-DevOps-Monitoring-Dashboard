@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   CloseIcon,
@@ -11,12 +11,25 @@ import {
 } from "../ui/Icons";
 
 const navItems = [
-  { to: "/dashboard", label: "Overview", icon: GridIcon },
-  { to: "/services/new", label: "Add service", icon: PlusIcon },
+  {
+    to: "/dashboard",
+    label: "Overview",
+    icon: GridIcon,
+    isActive: (pathname: string) =>
+      pathname === "/dashboard" ||
+      (pathname.startsWith("/services/") && pathname !== "/services/new"),
+  },
+  {
+    to: "/services/new",
+    label: "Add service",
+    icon: PlusIcon,
+    isActive: (pathname: string) => pathname === "/services/new",
+  },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const initials = user?.name
     .split(" ")
@@ -28,7 +41,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const handleLogout = () => {
     logout();
     onNavigate?.();
-    navigate("/login", { replace: true });
+    navigate("/login", { replace: true, state: { signedOut: true } });
   };
 
   return (
@@ -52,23 +65,27 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
           Workspace
         </p>
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `nav-item group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 ${
-                isActive
+        {navItems.map(({ to, label, icon: Icon, isActive }) => {
+          const active = isActive(location.pathname);
+
+          return (
+            <Link
+              key={to}
+              to={to}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              className={`nav-item group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07111f] ${
+                active
                   ? "nav-item-active bg-cyan-400/12 text-cyan-300 ring-1 ring-inset ring-cyan-300/10"
                   : "text-slate-400 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            <Icon className="h-5 w-5" />
-            {label}
-          </NavLink>
-        ))}
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              {label}
+              {active && <span className="sr-only">(current page)</span>}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="shrink-0 border-t border-white/8 p-4">
@@ -84,7 +101,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <button
           type="button"
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-300"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07111f]"
         >
           <LogOutIcon className="h-5 w-5" />
           Sign out
@@ -104,14 +121,7 @@ export function AppLayout() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    const pageTitle = location.pathname === "/dashboard"
-      ? "Service health"
-      : location.pathname === "/services/new"
-        ? "Add service"
-        : location.pathname.endsWith("/edit")
-          ? "Edit service"
-          : "Service details";
-    document.title = `${pageTitle} | Cloud Monitor`;
+    setMobileMenuOpen(false);
     const animationFrame = window.requestAnimationFrame(() => mainRef.current?.focus());
     return () => window.cancelAnimationFrame(animationFrame);
   }, [location.pathname]);
@@ -170,6 +180,13 @@ export function AppLayout() {
 
   return (
     <div className="app-shell min-h-screen text-slate-900">
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-[70] -translate-y-24 rounded-xl bg-[#07111f] px-4 py-3 text-sm font-semibold text-white shadow-xl transition-transform focus:translate-y-0 focus:outline-none focus:ring-4 focus:ring-cyan-300/40"
+      >
+        Skip to main content
+      </a>
+
       <aside className="sidebar-panel fixed inset-y-0 left-0 z-30 hidden w-64 overflow-hidden border-r border-white/5 lg:block">
         <SidebarContent />
       </aside>
@@ -196,7 +213,7 @@ export function AppLayout() {
               type="button"
               aria-label="Close navigation"
               onClick={() => setMobileMenuOpen(false)}
-              className="absolute right-3 top-5 rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+              className="absolute right-3 top-5 z-10 rounded-lg p-2 text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07111f]"
             >
               <CloseIcon className="h-5 w-5" />
             </button>
@@ -205,13 +222,17 @@ export function AppLayout() {
         </div>
       )}
 
-      <div className="relative z-10 min-w-0 lg:pl-64">
+      <div
+        className="relative z-10 min-w-0 lg:pl-64"
+        aria-hidden={mobileMenuOpen ? true : undefined}
+        inert={mobileMenuOpen ? true : undefined}
+      >
         <header className="sticky top-0 z-20 flex h-16 items-center border-b border-slate-200/70 bg-white/80 px-4 shadow-[0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl sm:px-6 lg:hidden">
           <button
             ref={menuButtonRef}
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="rounded-xl border border-slate-200 p-2.5 text-slate-700 shadow-sm"
+            className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-500/20 active:scale-[0.98]"
             aria-label="Open navigation"
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-navigation"
@@ -226,7 +247,12 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main ref={mainRef} tabIndex={-1} className="min-h-screen min-w-0 focus:outline-none">
+        <main
+          ref={mainRef}
+          id="main-content"
+          tabIndex={-1}
+          className="min-h-screen min-w-0 scroll-mt-20 focus:outline-none"
+        >
           <div key={location.pathname} className="route-stage">
             <Outlet />
           </div>

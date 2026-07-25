@@ -9,7 +9,19 @@ export function ProtectedRoute() {
   if (isLoading) return <FullPageLoader label="Restoring your session" />;
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: {
+            pathname: location.pathname,
+            search: location.search,
+            hash: location.hash,
+          },
+        }}
+      />
+    );
   }
 
   return <Outlet />;

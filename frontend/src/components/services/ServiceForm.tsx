@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ServiceInput } from "../../types/api";
 import { ArrowRightIcon, GlobeIcon } from "../ui/Icons";
 import { FormField } from "../ui/FormField";
@@ -7,9 +7,11 @@ interface ServiceFormProps {
   initialValues?: ServiceInput;
   submitting: boolean;
   submitLabel: string;
+  submittingLabel?: string;
   error?: string;
   onSubmit: (values: ServiceInput) => Promise<void>;
   onCancel: () => void;
+  onValuesChange?: () => void;
 }
 
 const defaults: ServiceInput = {
@@ -20,55 +22,222 @@ const defaults: ServiceInput = {
   check_interval_seconds: 60,
 };
 
+type FieldErrors = Partial<Record<keyof ServiceInput, string>>;
+
+const serviceFields = Object.keys(defaults) as (keyof ServiceInput)[];
+
+const fieldIds: Record<keyof ServiceInput, string> = {
+  name: "service-name",
+  url: "service-url",
+  expected_status_code: "expected-status",
+  slow_threshold_ms: "slow-threshold",
+  check_interval_seconds: "check-interval",
+};
+
+const UNSAVED_CHANGES_MESSAGE = "You have unsaved changes. Leave this page and discard them?";
+
+function parseNumberInput(value: string) {
+  return value === "" ? Number.NaN : Number(value);
+}
+
+function displayNumberInput(value: number) {
+  return Number.isNaN(value) ? "" : value;
+}
+
+function validateService(values: ServiceInput): FieldErrors {
+  const errors: FieldErrors = {};
+
+  if (!values.name.trim()) {
+    errors.name = "Enter a service name.";
+  }
+
+  const trimmedUrl = values.url.trim();
+  if (!trimmedUrl) {
+    errors.url = "Enter the service URL.";
+  } else {
+    try {
+      const parsedUrl = new URL(trimmedUrl);
+      if (!["http:", "https:"].includes(parsedUrl.protocol) || !parsedUrl.hostname) {
+        errors.url = "Use a complete URL beginning with http:// or https://.";
+      }
+    } catch {
+      errors.url = "Use a complete URL beginning with http:// or https://.";
+    }
+  }
+
+  if (
+    !Number.isInteger(values.expected_status_code) ||
+    values.expected_status_code < 100 ||
+    values.expected_status_code > 599
+  ) {
+    errors.expected_status_code = "Enter a whole HTTP status code from 100 to 599.";
+  }
+
+  if (!Number.isInteger(values.slow_threshold_ms) || values.slow_threshold_ms < 1) {
+    errors.slow_threshold_ms = "Enter a threshold of at least 1 millisecond.";
+  }
+
+  if (!Number.isInteger(values.check_interval_seconds) || values.check_interval_seconds < 10) {
+    errors.check_interval_seconds = "Enter an interval of at least 10 seconds.";
+  }
+
+  return errors;
+}
+
+function FieldFeedback({
+  hintId,
+  errorId,
+  hint,
+  error,
+}: {
+  hintId: string;
+  errorId: string;
+  hint: string;
+  error?: string;
+}) {
+  return (
+    <div className="mt-1.5 space-y-1 text-xs leading-5">
+      <p id={hintId} className="text-slate-500">
+        {hint}
+      </p>
+      {error && (
+        <p id={errorId} className="font-medium text-rose-700">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ServiceForm({
   initialValues = defaults,
   submitting,
   submitLabel,
+  submittingLabel = "Saving service…",
   error,
   onSubmit,
   onCancel,
+  onValuesChange,
 }: ServiceFormProps) {
   const [values, setValues] = useState<ServiceInput>(initialValues);
-  const [validationError, setValidationError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const initialValuesRef = useRef(initialValues);
+  const submitInFlightRef = useRef(false);
+  const hasUnsavedChanges = serviceFields.some(
+    (field) => values[field] !== initialValuesRef.current[field],
+  );
+  const validationErrorCount = Object.values(fieldErrors).filter(Boolean).length;
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || submitting) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        !(event.target instanceof Element)
+      ) {
+        return;
+      }
+
+      const link = event.target.closest<HTMLAnchorElement>("a[href]");
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+
+      const destination = new URL(link.href, window.location.href);
+      if (
+        destination.origin !== window.location.origin ||
+        destination.href === window.location.href
+      ) {
+        return;
+      }
+
+      if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleDocumentClick, true);
+    };
+  }, [hasUnsavedChanges, submitting]);
 
   const setField = <K extends keyof ServiceInput>(field: K, value: ServiceInput[K]) => {
     setValues((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const nextErrors = { ...current };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+    onValuesChange?.();
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setValidationError("");
+    if (submitting || submitInFlightRef.current) return;
 
-    if (!values.name.trim()) {
-      setValidationError("Enter a service name.");
+    const nextErrors = validateService(values);
+    setFieldErrors(nextErrors);
+    const firstInvalidField = serviceFields.find((field) => nextErrors[field]);
+
+    if (firstInvalidField) {
+      window.requestAnimationFrame(() => {
+        document.getElementById(fieldIds[firstInvalidField])?.focus();
+      });
       return;
     }
 
+    submitInFlightRef.current = true;
     try {
-      const parsedUrl = new URL(values.url);
-      if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error();
-    } catch {
-      setValidationError("Enter a complete URL beginning with http:// or https://.");
-      return;
+      await onSubmit({
+        ...values,
+        name: values.name.trim(),
+        url: values.url.trim(),
+      });
+    } finally {
+      submitInFlightRef.current = false;
     }
+  };
 
-    if (values.check_interval_seconds < 10) {
-      setValidationError("Check interval must be at least 10 seconds.");
-      return;
-    }
-
-    await onSubmit({
-      ...values,
-      name: values.name.trim(),
-      url: values.url.trim(),
-    });
+  const handleCancel = () => {
+    if (hasUnsavedChanges && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    onCancel();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {(error || validationError) && (
-        <div role="alert" className="notice-enter rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {validationError || error}
+    <form onSubmit={handleSubmit} className="space-y-6" noValidate aria-busy={submitting}>
+      {error && (
+        <div
+          role="alert"
+          className="notice-enter rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+        >
+          <p className="font-semibold">We couldn&apos;t save this service.</p>
+          <p className="mt-1 leading-6">{error}</p>
+          <p className="mt-1 text-xs leading-5 text-rose-600">Your entries are still here so you can review and try again.</p>
+        </div>
+      )}
+
+      {validationErrorCount > 0 && (
+        <div
+          role="alert"
+          className="notice-enter rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+        >
+          <p className="font-semibold">
+            Check {validationErrorCount === 1 ? "the highlighted field" : `${validationErrorCount} highlighted fields`}.
+          </p>
+          <p className="mt-1 text-xs leading-5 text-rose-600">Each issue is explained directly below its field.</p>
         </div>
       )}
 
@@ -87,25 +256,54 @@ export function ServiceForm({
         </div>
 
         <div className="grid gap-5">
-          <FormField
-            id="service-name"
-            label="Service name"
-            placeholder="e.g. Production API"
-            required
-            maxLength={100}
-            value={values.name}
-            onChange={(event) => setField("name", event.target.value)}
-          />
-          <FormField
-            id="service-url"
-            label="Service URL"
-            type="url"
-            placeholder="https://api.example.com/health"
-            hint="Use a dedicated health endpoint when one is available."
-            required
-            value={values.url}
-            onChange={(event) => setField("url", event.target.value)}
-          />
+          <div className={fieldErrors.name ? "[&_input]:border-rose-400 [&_input]:bg-rose-50/30" : ""}>
+            <FormField
+              id="service-name"
+              name="name"
+              label="Service name"
+              placeholder="e.g. Production API"
+              autoComplete="organization"
+              required
+              maxLength={100}
+              disabled={submitting}
+              aria-invalid={Boolean(fieldErrors.name)}
+              aria-describedby={`service-name-hint${fieldErrors.name ? " service-name-error" : ""}`}
+              aria-errormessage={fieldErrors.name ? "service-name-error" : undefined}
+              value={values.name}
+              onChange={(event) => setField("name", event.target.value)}
+            />
+            <FieldFeedback
+              hintId="service-name-hint"
+              errorId="service-name-error"
+              hint="Choose a short label you will recognise in dashboards and alerts."
+              error={fieldErrors.name}
+            />
+          </div>
+          <div className={fieldErrors.url ? "[&_input]:border-rose-400 [&_input]:bg-rose-50/30" : ""}>
+            <FormField
+              id="service-url"
+              name="url"
+              label="Service URL"
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              spellCheck={false}
+              placeholder="https://api.example.com/health"
+              required
+              disabled={submitting}
+              aria-invalid={Boolean(fieldErrors.url)}
+              aria-describedby={`service-url-hint${fieldErrors.url ? " service-url-error" : ""}`}
+              aria-errormessage={fieldErrors.url ? "service-url-error" : undefined}
+              value={values.url}
+              onChange={(event) => setField("url", event.target.value)}
+            />
+            <FieldFeedback
+              hintId="service-url-hint"
+              errorId="service-url-error"
+              hint="Include http:// or https://. A lightweight health endpoint gives the clearest signal."
+              error={fieldErrors.url}
+            />
+          </div>
         </div>
       </div>
 
@@ -119,46 +317,88 @@ export function ServiceForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-3">
-          <FormField
-            id="expected-status"
-            label="Expected status"
-            type="number"
-            min={100}
-            max={599}
-            required
-            value={values.expected_status_code}
-            onChange={(event) => setField("expected_status_code", Number(event.target.value))}
-            hint="Usually 200."
-          />
-          <FormField
-            id="slow-threshold"
-            label="Slow threshold (ms)"
-            type="number"
-            min={1}
-            required
-            value={values.slow_threshold_ms}
-            onChange={(event) => setField("slow_threshold_ms", Number(event.target.value))}
-            hint="Above this is slow."
-          />
-          <FormField
-            id="check-interval"
-            label="Check interval (sec)"
-            type="number"
-            min={10}
-            required
-            value={values.check_interval_seconds}
-            onChange={(event) => setField("check_interval_seconds", Number(event.target.value))}
-            hint="Minimum 10 seconds."
-          />
+          <div className={fieldErrors.expected_status_code ? "[&_input]:border-rose-400 [&_input]:bg-rose-50/30" : ""}>
+            <FormField
+              id="expected-status"
+              name="expected_status_code"
+              label="Expected status"
+              type="number"
+              inputMode="numeric"
+              min={100}
+              max={599}
+              step={1}
+              required
+              disabled={submitting}
+              aria-invalid={Boolean(fieldErrors.expected_status_code)}
+              aria-describedby={`expected-status-hint${fieldErrors.expected_status_code ? " expected-status-error" : ""}`}
+              aria-errormessage={fieldErrors.expected_status_code ? "expected-status-error" : undefined}
+              value={displayNumberInput(values.expected_status_code)}
+              onChange={(event) => setField("expected_status_code", parseNumberInput(event.target.value))}
+            />
+            <FieldFeedback
+              hintId="expected-status-hint"
+              errorId="expected-status-error"
+              hint="The HTTP response that counts as healthy, usually 200."
+              error={fieldErrors.expected_status_code}
+            />
+          </div>
+          <div className={fieldErrors.slow_threshold_ms ? "[&_input]:border-rose-400 [&_input]:bg-rose-50/30" : ""}>
+            <FormField
+              id="slow-threshold"
+              name="slow_threshold_ms"
+              label="Slow threshold (ms)"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              required
+              disabled={submitting}
+              aria-invalid={Boolean(fieldErrors.slow_threshold_ms)}
+              aria-describedby={`slow-threshold-hint${fieldErrors.slow_threshold_ms ? " slow-threshold-error" : ""}`}
+              aria-errormessage={fieldErrors.slow_threshold_ms ? "slow-threshold-error" : undefined}
+              value={displayNumberInput(values.slow_threshold_ms)}
+              onChange={(event) => setField("slow_threshold_ms", parseNumberInput(event.target.value))}
+            />
+            <FieldFeedback
+              hintId="slow-threshold-hint"
+              errorId="slow-threshold-error"
+              hint="Checks taking longer than this are marked slow."
+              error={fieldErrors.slow_threshold_ms}
+            />
+          </div>
+          <div className={fieldErrors.check_interval_seconds ? "[&_input]:border-rose-400 [&_input]:bg-rose-50/30" : ""}>
+            <FormField
+              id="check-interval"
+              name="check_interval_seconds"
+              label="Check interval (sec)"
+              type="number"
+              inputMode="numeric"
+              min={10}
+              step={1}
+              required
+              disabled={submitting}
+              aria-invalid={Boolean(fieldErrors.check_interval_seconds)}
+              aria-describedby={`check-interval-hint${fieldErrors.check_interval_seconds ? " check-interval-error" : ""}`}
+              aria-errormessage={fieldErrors.check_interval_seconds ? "check-interval-error" : undefined}
+              value={displayNumberInput(values.check_interval_seconds)}
+              onChange={(event) => setField("check_interval_seconds", parseNumberInput(event.target.value))}
+            />
+            <FieldFeedback
+              hintId="check-interval-hint"
+              errorId="check-interval-error"
+              hint="Monitoring runs at this cadence; the minimum is 10 seconds."
+              error={fieldErrors.check_interval_seconds}
+            />
+          </div>
         </div>
       </div>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <button
           type="button"
-          onClick={onCancel}
+          onClick={handleCancel}
           disabled={submitting}
-          className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Cancel
         </button>
@@ -167,7 +407,13 @@ export function ServiceForm({
           disabled={submitting}
           className="primary-action group inline-flex items-center justify-center gap-2 rounded-xl bg-[#07111f] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "Saving…" : submitLabel}
+          {submitting && (
+            <span
+              className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          )}
+          <span aria-live="polite">{submitting ? submittingLabel : submitLabel}</span>
           {!submitting && <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />}
         </button>
       </div>

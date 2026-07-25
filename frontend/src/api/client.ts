@@ -28,6 +28,7 @@ api.interceptors.response.use(
       error.config?.url?.includes("/api/auth/register");
 
     if (error.response?.status === 401 && !isAuthRequest) {
+      sessionStorage.setItem("auth_notice", "session_expired");
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       window.dispatchEvent(new Event("auth:unauthorized"));
     }
