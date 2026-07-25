@@ -1,0 +1,16 @@
+# This sets the default interval for how often Prometheus collects metrics.
+global:
+  scrape_interval: 5s
+
+# This tells Prometheus which targets it should collect metrics from.
+scrape_configs:
+  # This job lets Prometheus monitor itself.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # This job collects metrics from the Go backend.
+  - job_name: "go-backend"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
