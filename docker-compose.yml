@@ -1,4 +1,5 @@
 services:
+  # This runs PostgreSQL for the Go backend.
   postgres:
     image: postgres:16
     container_name: monitoring-postgres
@@ -11,5 +12,36 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # This runs Prometheus, which collects metrics from the Go backend.
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: monitoring-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - postgres
+
+  # This runs Grafana, which displays Prometheus metrics in dashboards.
+  grafana:
+    image: grafana/grafana:latest
+    container_name: monitoring-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:
