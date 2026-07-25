@@ -26,7 +26,7 @@ services:
     depends_on:
       - postgres
 
-  # This runs Grafana, which displays Prometheus metrics in dashboards.
+    # This runs Grafana, which displays Prometheus metrics in dashboards.
   grafana:
     image: grafana/grafana:latest
     container_name: monitoring-grafana
@@ -38,6 +38,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on:
       - prometheus
 
