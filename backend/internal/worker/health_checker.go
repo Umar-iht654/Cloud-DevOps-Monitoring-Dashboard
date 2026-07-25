@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/metrics"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -227,6 +228,17 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		// This stops the function because the health check save failed.
 		return
 	}
+
+	// This starts with a zero duration in case the response time is missing.
+	healthCheckDuration := time.Duration(0)
+
+	// This converts the response time from milliseconds into a Go duration.
+	if responseTimeMs != nil {
+		healthCheckDuration = time.Duration(*responseTimeMs) * time.Millisecond
+	}
+
+	// This records the health check result for Prometheus.
+	metrics.RecordHealthCheck(status, healthCheckDuration)
 
 	// This updates the current_status field on the monitored service.
 	if err := h.DB.Model(&models.Service{}).Where("id = ?", service.ID).Update("current_status", status).Error; err != nil {

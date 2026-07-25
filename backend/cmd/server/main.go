@@ -11,6 +11,7 @@ import (
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/worker"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -65,6 +66,9 @@ func main() {
 		MaxAge: 12 * time.Hour,
 	}))
 
+	// This records Prometheus metrics for every backend request.
+	router.Use(middleware.MetricsMiddleware())
+
 	// This creates a public health check route for checking if the backend is running.
 	router.GET("/health", func(c *gin.Context) {
 		// This returns a successful JSON response for the health check.
@@ -81,6 +85,9 @@ func main() {
 			"message": "Backend API is running",
 		})
 	})
+
+	// This exposes backend metrics in a format Prometheus can scrape.
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// This creates a public route to test whether the database connection is healthy.
 	router.GET("/api/db-status", func(c *gin.Context) {
