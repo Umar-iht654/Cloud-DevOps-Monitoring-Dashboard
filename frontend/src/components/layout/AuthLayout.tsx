@@ -81,14 +81,17 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         </p>
       </section>
 
-      <main className="auth-form-canvas relative flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
-        <div className="absolute left-5 top-6 flex items-center gap-2 lg:hidden">
+      <main
+        id="authentication-content"
+        className="auth-form-canvas relative flex min-h-screen w-full items-start justify-center px-4 pb-8 pt-24 sm:items-center sm:px-8 sm:py-12 lg:py-10"
+      >
+        <div className="absolute left-4 top-5 flex items-center gap-2 sm:left-8 sm:top-7 lg:hidden">
           <div className="brand-pulse flex h-9 w-9 items-center justify-center rounded-xl bg-[#07111f] text-cyan-300">
             <PulseIcon className="h-5 w-5" />
           </div>
           <span className="font-semibold text-slate-900">Cloud Monitor</span>
         </div>
-        <div className="auth-form-panel w-full max-w-md rounded-3xl p-6 sm:p-9">{children}</div>
+        <div className="auth-form-panel w-full max-w-md rounded-3xl p-5 sm:p-9">{children}</div>
       </main>
     </div>
   );

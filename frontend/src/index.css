@@ -45,7 +45,9 @@ body {
 
 button,
 a,
-input {
+input,
+select,
+textarea {
   -webkit-tap-highlight-color: transparent;
   transition-timing-function: var(--ease-out-expo);
 }
@@ -53,6 +55,16 @@ input {
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]) {
   cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+:where(a, button, input, select, textarea, [role="button"]):focus-visible {
+  outline: 3px solid #0e7490;
+  outline-offset: 3px;
 }
 
 ::selection {

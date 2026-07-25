@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../api/client";
 import { AuthLayout } from "../components/layout/AuthLayout";
@@ -15,7 +15,19 @@ export function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
   const [submitting, setSubmitting] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   if (isLoading) {
     return <FullPageLoader label="Restoring your session" />;
@@ -27,24 +39,42 @@ export function RegisterPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError("");
+    if (submitting) return;
 
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim();
+    const nextErrors: typeof fieldErrors = {};
+
+    if (!normalizedName) nextErrors.name = "Enter your full name.";
+    if (!normalizedEmail) {
+      nextErrors.email = "Enter your email address.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
     if (password.length < 7) {
-      setError("Password must be at least 7 characters long.");
-      return;
+      nextErrors.password = "Use at least 7 characters.";
+    }
+    if (!confirmPassword) {
+      nextErrors.confirmPassword = "Confirm your password.";
+    } else if (password !== confirmPassword) {
+      nextErrors.confirmPassword = "Passwords do not match.";
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    setFieldErrors(nextErrors);
+    setError("");
+    if (Object.keys(nextErrors).length > 0) {
+      window.requestAnimationFrame(() => {
+        formRef.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus();
+      });
       return;
     }
 
     setSubmitting(true);
     try {
-      await register(name, email, password);
+      await register(normalizedName, normalizedEmail, password);
       navigate("/login", {
         replace: true,
-        state: { registrationSuccess: true, email },
+        state: { registrationSuccess: true, email: normalizedEmail },
       });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create your account."));
@@ -64,20 +94,38 @@ export function RegisterPage() {
       </div>
 
       {error && (
-        <div role="alert" className="notice-enter mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div
+          ref={errorRef}
+          role="alert"
+          tabIndex={-1}
+          className="notice-enter mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 focus:outline-none"
+        >
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        aria-busy={submitting}
+        className="space-y-4"
+      >
         <FormField
           id="name"
           label="Full name"
           autoComplete="name"
           placeholder="Your name"
           required
+          autoFocus
+          disabled={submitting}
+          error={fieldErrors.name}
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value);
+            setFieldErrors((current) => ({ ...current, name: undefined }));
+            setError("");
+          }}
         />
         <FormField
           id="email"
@@ -86,8 +134,14 @@ export function RegisterPage() {
           autoComplete="email"
           placeholder="you@example.com"
           required
+          disabled={submitting}
+          error={fieldErrors.email}
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setFieldErrors((current) => ({ ...current, email: undefined }));
+            setError("");
+          }}
         />
         <FormField
           id="password"
@@ -97,8 +151,20 @@ export function RegisterPage() {
           placeholder="At least 7 characters"
           required
           minLength={7}
+          disabled={submitting}
+          error={fieldErrors.password}
+          hint="Use at least 7 characters."
+          passwordToggle
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setFieldErrors((current) => ({
+              ...current,
+              password: undefined,
+              confirmPassword: undefined,
+            }));
+            setError("");
+          }}
         />
         <FormField
           id="confirm-password"
@@ -107,8 +173,15 @@ export function RegisterPage() {
           autoComplete="new-password"
           placeholder="Repeat your password"
           required
+          disabled={submitting}
+          error={fieldErrors.confirmPassword}
+          passwordToggle
           value={confirmPassword}
-          onChange={(event) => setConfirmPassword(event.target.value)}
+          onChange={(event) => {
+            setConfirmPassword(event.target.value);
+            setFieldErrors((current) => ({ ...current, confirmPassword: undefined }));
+            setError("");
+          }}
         />
 
         <button
@@ -123,7 +196,10 @@ export function RegisterPage() {
 
       <p className="mt-7 text-center text-sm text-slate-500">
         Already have an account?{" "}
-        <Link to="/login" className="font-semibold text-cyan-700 hover:text-cyan-600">
+        <Link
+          to="/login"
+          className="rounded font-semibold text-cyan-700 hover:text-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2"
+        >
           Sign in
         </Link>
       </p>
