@@ -17,9 +17,13 @@ const dotStyles: Record<ServiceStatus, string> = {
 export function StatusBadge({ status, live = false }: { status: ServiceStatus; live?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${statusStyles[status]}`}
+      aria-label={`Service status: ${status}`}
+      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${statusStyles[status]}`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${live && status === "online" ? "live-dot" : ""} ${dotStyles[status]}`} />
+      <span
+        aria-hidden="true"
+        className={`h-1.5 w-1.5 rounded-full ${live && status === "online" ? "live-dot" : ""} ${dotStyles[status]}`}
+      />
       {status}
     </span>
   );
