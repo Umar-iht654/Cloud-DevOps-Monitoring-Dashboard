@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getApiErrorMessage } from "../api/client";
 import { getDashboardSummary } from "../api/dashboard";
 import { getServices, getServiceSummary } from "../api/services";
+import { DashboardSkeleton } from "../components/dashboard/DashboardSkeleton";
 import { EmptyServices } from "../components/dashboard/EmptyServices";
 import { SummaryCard } from "../components/dashboard/SummaryCard";
 import { LightRays } from "../components/effects/LightRays";
@@ -17,7 +18,6 @@ import {
   PlusIcon,
   RefreshIcon,
 } from "../components/ui/Icons";
-import { InlineLoader } from "../components/ui/InlineLoader";
 import type { DashboardSummary, Service, ServiceSummary } from "../types/api";
 import { formatDateTime, formatMilliseconds, formatPercentage } from "../utils/formatters";
 
@@ -26,6 +26,7 @@ export function DashboardPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [serviceSummaries, setServiceSummaries] = useState<Record<number, ServiceSummary>>({});
   const [serviceSummaryErrors, setServiceSummaryErrors] = useState<Record<number, true>>({});
+  const [serviceSummaryLoading, setServiceSummaryLoading] = useState<Record<number, true>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -49,6 +50,16 @@ export function DashboardPage() {
       ]);
 
       const nextServices = servicesResponse.data.services;
+      if (currentRequest !== requestVersion.current) return;
+
+      setSummary(summaryResponse.data.summary);
+      setServices(nextServices);
+      setServiceSummaryErrors({});
+      setServiceSummaryLoading(
+        Object.fromEntries(nextServices.map((service) => [service.id, true])),
+      );
+      if (!silent) setLoading(false);
+
       const detailResults = await Promise.allSettled(
         nextServices.map((service) => getServiceSummary(service.id)),
       );
@@ -63,10 +74,9 @@ export function DashboardPage() {
       });
 
       if (currentRequest !== requestVersion.current) return;
-      setSummary(summaryResponse.data.summary);
-      setServices(nextServices);
       setServiceSummaries(summaries);
       setServiceSummaryErrors(summaryErrors);
+      setServiceSummaryLoading({});
     } catch (requestError) {
       if (currentRequest !== requestVersion.current) return;
       const message = getApiErrorMessage(requestError, "Unable to load dashboard data.");
@@ -150,14 +160,15 @@ export function DashboardPage() {
                 type="button"
                 onClick={() => void loadDashboard(true)}
                 disabled={refreshing}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm font-semibold text-slate-200 backdrop-blur-sm transition hover:bg-white/10 disabled:opacity-60"
+                aria-label={refreshing ? "Refreshing dashboard" : "Refresh dashboard"}
+                className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm font-semibold text-slate-200 backdrop-blur-sm transition hover:bg-white/10 disabled:opacity-60"
               >
                 <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                Refresh
+                {refreshing ? "Refreshing…" : "Refresh"}
               </button>
               <Link
                 to="/services/new"
-                className="primary-action inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/15 focus:outline-none focus:ring-4 focus:ring-cyan-300/20"
+                className="primary-action inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/15 focus:outline-none focus:ring-4 focus:ring-cyan-300/20"
               >
                 <PlusIcon className="h-4 w-4" />
                 Add service
@@ -168,14 +179,28 @@ export function DashboardPage() {
       </header>
 
       {loading ? (
-        <InlineLoader label="Loading your services" />
+        <DashboardSkeleton />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void loadDashboard()} />
       ) : (
-        <>
+        <div aria-busy={refreshing}>
           {refreshError && (
-            <div role="status" className="notice-enter mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              The latest refresh failed. Showing your most recent dashboard data. {refreshError}
+            <div
+              role="status"
+              aria-live="polite"
+              className="notice-enter mb-5 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p>
+                <span className="font-semibold">Refresh unsuccessful.</span>{" "}
+                Showing the most recent dashboard data. {refreshError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadDashboard(true)}
+                className="shrink-0 self-start rounded-lg border border-amber-300 bg-white/70 px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-white sm:self-auto"
+              >
+                Try again
+              </button>
             </div>
           )}
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-12" aria-label="Dashboard summary">
@@ -184,7 +209,7 @@ export function DashboardPage() {
             <SummaryCard className="xl:col-span-2" delay={120} label="Slow" value={summary?.slow_services ?? 0} helper="Available, degraded" icon={ClockIcon} tone="amber" />
             <SummaryCard className="xl:col-span-2" delay={180} label="Down" value={summary?.down_services ?? 0} helper={`${summary?.failed_checks ?? 0} failed checks`} icon={AlertIcon} tone="rose" />
             <SummaryCard
-              className="xl:col-span-3"
+              className="sm:col-span-2 xl:col-span-3"
               featured
               delay={240}
               label="Overall uptime"
@@ -209,12 +234,12 @@ export function DashboardPage() {
           </section>
 
           <section className="mt-9">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-950">Monitored services</h2>
                 <p className="mt-1 text-sm text-slate-500">Automatically refreshed every 30 seconds.</p>
               </div>
-              <span className="rounded-full bg-slate-200/60 px-3 py-1 text-xs font-semibold text-slate-600">
+              <span className="self-start rounded-full bg-slate-200/60 px-3 py-1 text-xs font-semibold text-slate-600 sm:self-auto">
                 {services.length} {services.length === 1 ? "service" : "services"}
               </span>
             </div>
@@ -229,13 +254,14 @@ export function DashboardPage() {
                     service={service}
                     summary={serviceSummaries[service.id]}
                     summaryError={serviceSummaryErrors[service.id]}
+                    summaryLoading={serviceSummaryLoading[service.id]}
                     index={index}
                   />
                 ))}
               </div>
             )}
           </section>
-        </>
+        </div>
       )}
     </div>
   );

@@ -504,6 +504,26 @@ button:not(:disabled),
   animation: notice-enter 320ms var(--ease-out-expo) both;
 }
 
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.skeleton-block::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgb(255 255 255 / 68%) 42%,
+    transparent 64%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.45s ease-in-out infinite;
+}
+
 .health-row {
   transition:
     background-color 180ms ease,
@@ -640,6 +660,10 @@ button:not(:disabled),
 @keyframes notice-enter {
   from { opacity: 0; transform: translate3d(0, -6px, 0); }
   to { opacity: 1; transform: none; }
+}
+
+@keyframes skeleton-shimmer {
+  to { transform: translateX(100%); }
 }
 
 @keyframes radar-ring {

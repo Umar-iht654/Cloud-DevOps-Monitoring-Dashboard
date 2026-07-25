@@ -205,7 +205,7 @@ export function AppLayout() {
         </div>
       )}
 
-      <div className="relative z-10 lg:pl-64">
+      <div className="relative z-10 min-w-0 lg:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center border-b border-slate-200/70 bg-white/80 px-4 shadow-[0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl sm:px-6 lg:hidden">
           <button
             ref={menuButtonRef}
@@ -218,15 +218,15 @@ export function AppLayout() {
           >
             <MenuIcon className="h-5 w-5" />
           </button>
-          <div className="ml-3 flex items-center gap-2">
+          <div className="ml-3 flex min-w-0 items-center gap-2">
             <div className="brand-pulse flex h-8 w-8 items-center justify-center rounded-lg bg-[#07111f] text-cyan-300">
               <PulseIcon className="h-5 w-5" />
             </div>
-            <span className="font-semibold">Cloud Monitor</span>
+            <span className="truncate font-semibold">Cloud Monitor</span>
           </div>
         </header>
 
-        <main ref={mainRef} tabIndex={-1} className="min-h-screen focus:outline-none">
+        <main ref={mainRef} tabIndex={-1} className="min-h-screen min-w-0 focus:outline-none">
           <div key={location.pathname} className="route-stage">
             <Outlet />
           </div>
