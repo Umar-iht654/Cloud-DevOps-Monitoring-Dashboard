@@ -220,17 +220,38 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		CheckedAt: time.Now(),
 	}
 
-	// This inserts the health check record into the health_checks table.
-	if err := h.DB.Create(&healthCheck).Error; err != nil {
-		// This logs the error if the health check could not be saved.
-		log.Println("Failed to save health check:", err)
+	// This runs the health check save, alert creation and service status update as one database transaction.
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		// This inserts the health check record into the health_checks table.
+		if err := tx.Create(&healthCheck).Error; err != nil {
+			// This returns the error so the transaction is rolled back.
+			return fmt.Errorf("failed to save health check: %w", err)
+		}
 
-		// This stops the function because the health check save failed.
+		// This creates an alert if the service has just moved into a down state.
+		if err := h.createDowntimeAlertIfNeeded(tx, service, status, healthCheck, errorMessage); err != nil {
+			// This returns the error so the transaction is rolled back.
+			return err
+		}
+
+		// This updates the current_status field on the monitored service.
+		if err := tx.Model(&models.Service{}).Where("id = ?", service.ID).Update("current_status", status).Error; err != nil {
+			// This returns the error so the transaction is rolled back.
+			return fmt.Errorf("failed to update service current status: %w", err)
+		}
+
+		// This commits the transaction because all database writes succeeded.
+		return nil
+	})
+
+	// This checks whether any part of the transaction failed.
+	if err != nil {
+		// This logs the transaction error without crashing the background worker.
+		log.Println("Failed to store health check transaction:", err)
+
+		// This stops because the database changes were rolled back.
 		return
 	}
-
-	// This creates an alert if the service has just moved into a down state.
-	h.createDowntimeAlertIfNeeded(service, status, healthCheck, errorMessage)
 
 	// This starts with a zero duration in case the response time is missing.
 	healthCheckDuration := time.Duration(0)
@@ -240,34 +261,25 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		healthCheckDuration = time.Duration(*responseTimeMs) * time.Millisecond
 	}
 
-	// This records the health check result for Prometheus.
+	// This records the health check result for Prometheus after the database transaction succeeds.
 	metrics.RecordHealthCheck(status, healthCheckDuration)
-
-	// This updates the current_status field on the monitored service.
-	if err := h.DB.Model(&models.Service{}).Where("id = ?", service.ID).Update("current_status", status).Error; err != nil {
-		// This logs the error if the service status could not be updated.
-		log.Println("Failed to update service current status:", err)
-
-		// This stops the function because the status update failed.
-		return
-	}
 
 	// This logs the result of the health check.
 	log.Printf("Checked service %s: %s", service.Name, status)
 }
 
 // createDowntimeAlertIfNeeded creates an alert when a service changes from not-down to down.
-func (h *HealthChecker) createDowntimeAlertIfNeeded(service models.Service, status string, healthCheck models.HealthCheck, errorMessage string) {
+func (h *HealthChecker) createDowntimeAlertIfNeeded(tx *gorm.DB, service models.Service, status string, healthCheck models.HealthCheck, errorMessage string) error {
 	// This checks whether the latest check result is not down.
 	if status != "down" {
 		// This stops because we only create downtime alerts in this first version.
-		return
+		return nil
 	}
 
 	// This checks whether the service was already down before this check.
 	if service.CurrentStatus == "down" {
 		// This stops because we do not want duplicate alerts every time the worker checks an already-down service.
-		return
+		return nil
 	}
 
 	// This creates a default message if the health checker did not provide one.
@@ -306,15 +318,15 @@ func (h *HealthChecker) createDowntimeAlertIfNeeded(service models.Service, stat
 		Message: message,
 	}
 
-	// This inserts the alert into the alerts table.
-	if err := h.DB.Create(&alert).Error; err != nil {
-		// This logs the error but does not stop the health checker, because monitoring should continue.
-		log.Println("Failed to create downtime alert:", err)
-
-		// This stops only the alert creation function.
-		return
+	// This inserts the alert into the alerts table inside the same transaction as the health check and status update.
+	if err := tx.Create(&alert).Error; err != nil {
+		// This returns the error so the transaction can be rolled back.
+		return fmt.Errorf("failed to create downtime alert: %w", err)
 	}
 
 	// This logs that an alert was created.
 	log.Printf("Created downtime alert for service %s", service.Name)
+
+	// This returns nil because the alert was created successfully.
+	return nil
 }

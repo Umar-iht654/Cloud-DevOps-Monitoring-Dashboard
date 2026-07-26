@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -131,12 +132,23 @@ func (h *AlertHandler) GetServiceAlerts(c *gin.Context) {
 
 	// This checks that the requested service belongs to the logged-in user.
 	if err := h.DB.Where("id = ? AND user_id = ?", serviceID, userID).First(&service).Error; err != nil {
-		// This returns a 404 response because the service was not found for this user.
-		c.JSON(http.StatusNotFound, gin.H{
-			"message": "Service not found",
+		// This checks whether the service genuinely does not exist or does not belong to this user.
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// This returns a 404 response because the service was not found for this user.
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "Service not found",
+			})
+
+			// This stops the handler because users cannot view alerts for services they do not own.
+			return
+		}
+
+		// This returns a 500 response because an unexpected database error happened.
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to check service ownership",
 		})
 
-		// This stops the handler because users cannot view alerts for services they do not own.
+		// This stops the handler because the ownership check failed unexpectedly.
 		return
 	}
 
