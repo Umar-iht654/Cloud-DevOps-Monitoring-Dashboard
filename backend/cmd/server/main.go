@@ -45,6 +45,15 @@ func main() {
 	// This starts the health checker in a goroutine so it runs in the background while the API server runs.
 	go healthChecker.Start()
 
+	// This creates the monitoring summary aggregator and gives it database access.
+	summaryAggregator := worker.NewMonitoringSummaryAggregator(db)
+
+	// This runs aggregation once during startup before retention cleanup can remove old raw checks.
+	summaryAggregator.RunOnce()
+
+	// This starts the summary aggregator in a goroutine so summaries keep updating in the background.
+	go summaryAggregator.Start()
+
 	// This creates the health-check retention cleaner and gives it database access plus cleanup settings.
 	retentionCleaner := worker.NewHealthCheckRetentionCleaner(
 		db,
