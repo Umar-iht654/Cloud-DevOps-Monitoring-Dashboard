@@ -12,6 +12,10 @@ type Service struct {
 	CheckIntervalSeconds int           `gorm:"not null;default:60" json:"check_interval_seconds"`
 	CurrentStatus        string        `gorm:"size:20;not null;default:unknown" json:"current_status"`
 	HealthChecks         []HealthCheck `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"health_checks,omitempty"`
-	CreatedAt            time.Time     `json:"created_at"`
-	UpdatedAt            time.Time     `json:"updated_at"`
+
+	// Alerts stores alert records created for this service.
+	Alerts []Alert `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"alerts,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

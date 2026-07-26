@@ -8,6 +8,10 @@ type User struct {
 	Email        string    `gorm:"size:255;uniqueIndex;not null" json:"email"`
 	PasswordHash string    `gorm:"not null" json:"-"`
 	Services     []Service `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"services,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+
+	// Alerts stores alert records owned by this user.
+	Alerts []Alert `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"alerts,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
