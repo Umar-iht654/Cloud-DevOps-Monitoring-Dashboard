@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useUnsavedChanges } from "../../context/UnsavedChangesContext";
 import {
   CloseIcon,
   GridIcon,
@@ -29,6 +30,7 @@ const navItems = [
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth();
+  const { confirmNavigation } = useUnsavedChanges();
   const location = useLocation();
   const navigate = useNavigate();
   const initials = user?.name
@@ -39,9 +41,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     .toUpperCase();
 
   const handleLogout = () => {
+    if (!confirmNavigation()) return;
+
+    sessionStorage.setItem("auth_notice", "signed_out");
     logout();
     onNavigate?.();
-    navigate("/login", { replace: true, state: { signedOut: true } });
+    navigate("/login", { replace: true });
   };
 
   return (

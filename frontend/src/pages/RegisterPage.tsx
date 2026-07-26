@@ -43,6 +43,7 @@ export function RegisterPage() {
 
     const normalizedName = name.trim();
     const normalizedEmail = email.trim();
+    const normalizedPassword = password.trim();
     const nextErrors: typeof fieldErrors = {};
 
     if (!normalizedName) nextErrors.name = "Enter your full name.";
@@ -51,8 +52,10 @@ export function RegisterPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       nextErrors.email = "Enter a valid email address.";
     }
-    if (password.length < 7) {
+    if (normalizedPassword.length < 7) {
       nextErrors.password = "Use at least 7 characters.";
+    } else if (password !== normalizedPassword) {
+      nextErrors.password = "Password cannot start or end with spaces.";
     }
     if (!confirmPassword) {
       nextErrors.confirmPassword = "Confirm your password.";

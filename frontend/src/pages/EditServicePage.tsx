@@ -57,19 +57,17 @@ export function EditServicePage() {
   }, [loadService]);
 
   const handleSubmit = async (values: ServiceInput) => {
-    if (!id || submitInFlightRef.current) return;
+    if (!id || submitInFlightRef.current) return false;
     submitInFlightRef.current = true;
     setSubmitting(true);
     setError("");
 
     try {
       await updateService(id, values);
-      navigate(`/services/${id}`, {
-        replace: true,
-        state: { updated: true },
-      });
+      return true;
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to update the service."));
+      return false;
     } finally {
       submitInFlightRef.current = false;
       setSubmitting(false);
@@ -115,6 +113,12 @@ export function EditServicePage() {
           submittingLabel="Saving changes…"
           error={error}
           onSubmit={handleSubmit}
+          onSubmitSuccess={() =>
+            navigate(`/services/${id}`, {
+              replace: true,
+              state: { updated: true },
+            })
+          }
           onCancel={() => navigate(`/services/${id}`)}
           onValuesChange={() => setError("")}
         />

@@ -26,7 +26,7 @@ export function LoginPage() {
   const formRef = useRef<HTMLFormElement>(null);
   const [authNotice] = useState(() => sessionStorage.getItem("auth_notice"));
   const registrationSuccess = Boolean(navigationState?.registrationSuccess);
-  const signedOut = Boolean(navigationState?.signedOut);
+  const signedOut = authNotice === "signed_out" || Boolean(navigationState?.signedOut);
   const sessionExpired = authNotice === "session_expired";
   const requestedPath = navigationState?.from?.pathname;
   const safeRequestedPath =
