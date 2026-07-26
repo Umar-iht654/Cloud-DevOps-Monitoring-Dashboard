@@ -45,6 +45,16 @@ func main() {
 	// This starts the health checker in a goroutine so it runs in the background while the API server runs.
 	go healthChecker.Start()
 
+	// This creates the health-check retention cleaner and gives it database access plus cleanup settings.
+	retentionCleaner := worker.NewHealthCheckRetentionCleaner(
+		db,
+		cfg.HealthCheckRetentionDays,
+		cfg.HealthCheckCleanupIntervalHours,
+	)
+
+	// This starts the retention cleaner in a goroutine so old raw health checks are cleaned up in the background.
+	go retentionCleaner.Start()
+
 	// This creates a new Gin router with default logging and recovery middleware.
 	router := gin.Default()
 
