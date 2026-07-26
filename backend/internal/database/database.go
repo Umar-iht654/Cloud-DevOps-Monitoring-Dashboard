@@ -38,6 +38,12 @@ func Migrate(db *gorm.DB) {
 
 		// This creates or updates the alerts table.
 		&models.Alert{},
+
+		// This creates or updates the hourly service summaries table.
+		&models.HourlyServiceSummary{},
+
+		// This creates or updates the daily service summaries table.
+		&models.DailyServiceSummary{},
 	)
 
 	if err != nil {
