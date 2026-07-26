@@ -26,8 +26,12 @@ api.interceptors.response.use(
     const isAuthRequest =
       error.config?.url?.includes("/api/auth/login") ||
       error.config?.url?.includes("/api/auth/register");
+    const isCurrentUserRequest = error.config?.url?.includes("/api/auth/me");
+    const sessionIsInvalid =
+      (error.response?.status === 401 && !isAuthRequest) ||
+      (error.response?.status === 404 && isCurrentUserRequest);
 
-    if (error.response?.status === 401 && !isAuthRequest) {
+    if (sessionIsInvalid) {
       sessionStorage.setItem("auth_notice", "session_expired");
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       window.dispatchEvent(new Event("auth:unauthorized"));

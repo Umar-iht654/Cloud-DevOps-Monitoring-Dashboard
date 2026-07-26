@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useBlocker } from "react-router-dom";
+import { useUnsavedChanges } from "../../context/UnsavedChangesContext";
 import type { ServiceInput } from "../../types/api";
 import { ArrowRightIcon, GlobeIcon } from "../ui/Icons";
 import { FormField } from "../ui/FormField";
@@ -9,7 +11,8 @@ interface ServiceFormProps {
   submitLabel: string;
   submittingLabel?: string;
   error?: string;
-  onSubmit: (values: ServiceInput) => Promise<void>;
+  onSubmit: (values: ServiceInput) => Promise<boolean>;
+  onSubmitSuccess: () => void;
   onCancel: () => void;
   onValuesChange?: () => void;
 }
@@ -35,6 +38,8 @@ const fieldIds: Record<keyof ServiceInput, string> = {
 };
 
 const UNSAVED_CHANGES_MESSAGE = "You have unsaved changes. Leave this page and discard them?";
+const SAVING_IN_PROGRESS_MESSAGE =
+  "Please wait for the service to finish saving before leaving this page.";
 
 function parseNumberInput(value: string) {
   return value === "" ? Number.NaN : Number(value);
@@ -116,6 +121,7 @@ export function ServiceForm({
   submittingLabel = "Saving service…",
   error,
   onSubmit,
+  onSubmitSuccess,
   onCancel,
   onValuesChange,
 }: ServiceFormProps) {
@@ -123,55 +129,71 @@ export function ServiceForm({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const initialValuesRef = useRef(initialValues);
   const submitInFlightRef = useRef(false);
+  const submittingRef = useRef(submitting);
+  const navigationApprovedRef = useRef(false);
+  const hasUnsavedChangesRef = useRef(false);
+  const { registerNavigationGuard, confirmNavigation } = useUnsavedChanges();
   const hasUnsavedChanges = serviceFields.some(
     (field) => values[field] !== initialValuesRef.current[field],
   );
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
+  submittingRef.current = submitting;
   const validationErrorCount = Object.values(fieldErrors).filter(Boolean).length;
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      (hasUnsavedChanges || submitting || submitInFlightRef.current) &&
+      !navigationApprovedRef.current &&
+      (currentLocation.pathname !== nextLocation.pathname ||
+        currentLocation.search !== nextLocation.search ||
+        currentLocation.hash !== nextLocation.hash),
+  );
 
   useEffect(() => {
-    if (!hasUnsavedChanges || submitting) return;
+    if (!hasUnsavedChanges && !submitting && !submitInFlightRef.current) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (
-        event.defaultPrevented ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey ||
-        !(event.target instanceof Element)
-      ) {
-        return;
-      }
-
-      const link = event.target.closest<HTMLAnchorElement>("a[href]");
-      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
-
-      const destination = new URL(link.href, window.location.href);
-      if (
-        destination.origin !== window.location.origin ||
-        destination.href === window.location.href
-      ) {
-        return;
-      }
-
-      if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("click", handleDocumentClick, true);
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("click", handleDocumentClick, true);
     };
   }, [hasUnsavedChanges, submitting]);
+
+  useEffect(
+    () =>
+      registerNavigationGuard(() => {
+        if (submittingRef.current || submitInFlightRef.current) {
+          window.alert(SAVING_IN_PROGRESS_MESSAGE);
+          return false;
+        }
+
+        if (!hasUnsavedChangesRef.current) return true;
+        if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) return false;
+
+        navigationApprovedRef.current = true;
+        return true;
+      }),
+    [registerNavigationGuard],
+  );
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+
+    if (submittingRef.current || submitInFlightRef.current) {
+      window.alert(SAVING_IN_PROGRESS_MESSAGE);
+      blocker.reset();
+      return;
+    }
+
+    if (window.confirm(UNSAVED_CHANGES_MESSAGE)) {
+      blocker.proceed();
+    } else {
+      blocker.reset();
+    }
+  }, [blocker]);
 
   const setField = <K extends keyof ServiceInput>(field: K, value: ServiceInput[K]) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -201,18 +223,22 @@ export function ServiceForm({
 
     submitInFlightRef.current = true;
     try {
-      await onSubmit({
+      const succeeded = await onSubmit({
         ...values,
         name: values.name.trim(),
         url: values.url.trim(),
       });
+      if (succeeded) {
+        navigationApprovedRef.current = true;
+        onSubmitSuccess();
+      }
     } finally {
       submitInFlightRef.current = false;
     }
   };
 
   const handleCancel = () => {
-    if (hasUnsavedChanges && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    if (!confirmNavigation()) return;
     onCancel();
   };
 

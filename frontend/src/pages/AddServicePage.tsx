@@ -11,21 +11,21 @@ export function AddServicePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const submitInFlightRef = useRef(false);
+  const createdServiceIdRef = useRef<number | null>(null);
 
   const handleSubmit = async (values: ServiceInput) => {
-    if (submitInFlightRef.current) return;
+    if (submitInFlightRef.current) return false;
     submitInFlightRef.current = true;
     setSubmitting(true);
     setError("");
 
     try {
       const { data } = await createService(values);
-      navigate(`/services/${data.service.id}`, {
-        replace: true,
-        state: { created: true },
-      });
+      createdServiceIdRef.current = data.service.id;
+      return true;
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create the service."));
+      return false;
     } finally {
       submitInFlightRef.current = false;
       setSubmitting(false);
@@ -63,6 +63,13 @@ export function AddServicePage() {
         submittingLabel="Starting monitoring…"
         error={error}
         onSubmit={handleSubmit}
+        onSubmitSuccess={() => {
+          if (createdServiceIdRef.current === null) return;
+          navigate(`/services/${createdServiceIdRef.current}`, {
+            replace: true,
+            state: { created: true },
+          });
+        }}
         onCancel={() => navigate("/dashboard")}
         onValuesChange={() => setError("")}
       />

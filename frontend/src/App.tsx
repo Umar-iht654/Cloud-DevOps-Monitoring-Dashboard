@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { FullPageLoader } from "./components/ui/FullPageLoader";
 import { AuthProvider } from "./context/AuthContext";
+import { UnsavedChangesProvider } from "./context/UnsavedChangesContext";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -49,25 +50,27 @@ function RouteMetadata() {
 function App() {
   return (
     <AuthProvider>
-      <RouteMetadata />
-      <Suspense fallback={<FullPageLoader label="Loading page" />}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+      <UnsavedChangesProvider>
+        <RouteMetadata />
+        <Suspense fallback={<FullPageLoader label="Loading page" />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/services/new" element={<AddServicePage />} />
-              <Route path="/services/:id" element={<ServiceDetailPage />} />
-              <Route path="/services/:id/edit" element={<EditServicePage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/services/new" element={<AddServicePage />} />
+                <Route path="/services/:id" element={<ServiceDetailPage />} />
+                <Route path="/services/:id/edit" element={<EditServicePage />} />
+              </Route>
             </Route>
-          </Route>
 
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </Suspense>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
+      </UnsavedChangesProvider>
     </AuthProvider>
   );
 }
