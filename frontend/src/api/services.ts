@@ -32,7 +32,8 @@ export function getServiceSummary(id: string | number) {
   return api.get<ServiceSummaryResponse>(`/api/services/${id}/summary`);
 }
 
-export function getHealthChecks(id: string | number, limit = 50) {
+// This matches the backend default so the frontend does not request too much history.
+export function getHealthChecks(id: string | number, limit = 25) {
   return api.get<HealthChecksResponse>(`/api/services/${id}/health-checks`, {
     params: { limit },
   });

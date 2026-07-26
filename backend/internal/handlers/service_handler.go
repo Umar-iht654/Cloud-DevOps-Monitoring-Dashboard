@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/monitoring"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -194,7 +196,7 @@ func (h *ServiceHandler) CreateService(c *gin.Context) {
 
 	// This sets the default check interval if the user did not provide one.
 	if req.CheckIntervalSeconds == 0 {
-		req.CheckIntervalSeconds = 60
+		req.CheckIntervalSeconds = monitoring.DefaultCheckIntervalSeconds
 	}
 
 	// This checks that the expected status code is within a realistic HTTP status code range.
@@ -219,11 +221,11 @@ func (h *ServiceHandler) CreateService(c *gin.Context) {
 		return
 	}
 
-	// This checks that the check interval is greater than zero.
-	if req.CheckIntervalSeconds <= 0 {
-		// This returns a 400 response because the check interval is invalid.
+	// This checks that the check interval is not too frequent.
+	if req.CheckIntervalSeconds < monitoring.MinCheckIntervalSeconds {
+		// This returns a 400 response because very frequent checks would create too much database noise.
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Check interval must be greater than 0 seconds",
+			"message": fmt.Sprintf("Check interval must be at least %d seconds", monitoring.MinCheckIntervalSeconds),
 		})
 
 		// This stops the handler because the check interval is invalid.
@@ -524,11 +526,11 @@ func (h *ServiceHandler) UpdateService(c *gin.Context) {
 
 	// This checks whether a new check interval was provided.
 	if req.CheckIntervalSeconds != nil {
-		// This checks that the check interval is greater than zero.
-		if *req.CheckIntervalSeconds <= 0 {
-			// This returns a 400 response because the check interval is invalid.
+		// This checks that the new check interval is not too frequent.
+		if *req.CheckIntervalSeconds < monitoring.MinCheckIntervalSeconds {
+			// This returns a 400 response because very frequent checks would create too much database noise.
 			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "Check interval must be greater than 0 seconds",
+				"message": fmt.Sprintf("Check interval must be at least %d seconds", monitoring.MinCheckIntervalSeconds),
 			})
 
 			// This stops the handler because the check interval is invalid.

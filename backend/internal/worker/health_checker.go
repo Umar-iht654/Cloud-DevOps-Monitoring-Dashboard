@@ -9,6 +9,7 @@ import (
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/metrics"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/monitoring"
 	"gorm.io/gorm"
 )
 
@@ -122,10 +123,16 @@ func (h *HealthChecker) shouldCheckService(service models.Service) bool {
 	// This copies the service check interval into a local variable.
 	intervalSeconds := service.CheckIntervalSeconds
 
-	// This checks whether the interval is invalid.
+	// This checks whether the interval is missing or invalid.
 	if intervalSeconds <= 0 {
-		// This uses 60 seconds as a safe default interval.
-		intervalSeconds = 60
+		// This uses the default interval as a safe fallback.
+		intervalSeconds = monitoring.DefaultCheckIntervalSeconds
+	}
+
+	// This enforces the minimum interval even for older services already stored in the database.
+	if intervalSeconds < monitoring.MinCheckIntervalSeconds {
+		// This prevents very frequent checks from creating too many health check rows.
+		intervalSeconds = monitoring.MinCheckIntervalSeconds
 	}
 
 	// This calculates the next time the service is allowed to be checked.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/monitoring"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -136,7 +137,7 @@ func (h *HealthCheckHandler) GetHealthChecks(c *gin.Context) {
 	}
 
 	// This sets the default number of health checks to return.
-	limit := 50
+	limit := monitoring.DefaultHealthCheckHistoryLimit
 
 	// This reads the optional limit query parameter from the URL.
 	limitParam := c.Query("limit")
@@ -153,10 +154,10 @@ func (h *HealthCheckHandler) GetHealthChecks(c *gin.Context) {
 		}
 	}
 
-	// This prevents very large responses by capping the limit at 200.
-	if limit > 200 {
-		// This sets the maximum allowed limit to 200.
-		limit = 200
+	// This prevents very large responses by capping the limit.
+	if limit > monitoring.MaxHealthCheckHistoryLimit {
+		// This sets the maximum allowed limit.
+		limit = monitoring.MaxHealthCheckHistoryLimit
 	}
 
 	// This creates a slice to store the health checks found for the service.

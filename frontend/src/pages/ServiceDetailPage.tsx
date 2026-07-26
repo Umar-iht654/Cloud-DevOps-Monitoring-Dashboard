@@ -72,7 +72,8 @@ export function ServiceDetailPage() {
       const [serviceResult, summaryResult, checksResult] = await Promise.allSettled([
         getService(id),
         getServiceSummary(id),
-        getHealthChecks(id, 100),
+        // This loads enough recent checks for the chart and table without making the page noisy.
+        getHealthChecks(id, 25),
       ]);
       if (currentRequest !== requestVersion.current) return;
 

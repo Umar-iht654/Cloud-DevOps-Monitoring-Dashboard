@@ -3,8 +3,11 @@ import type { HealthCheck } from "../../types/api";
 import { formatDateTime, formatMilliseconds } from "../../utils/formatters";
 import { StatusBadge } from "../ui/StatusBadge";
 
-const INITIAL_VISIBLE_CHECKS = 20;
-const MAX_VISIBLE_CHECKS = 100;
+// This keeps the table readable by showing only the latest checks first.
+const INITIAL_VISIBLE_CHECKS = 10;
+
+// This matches the frontend health-check request size.
+const MAX_VISIBLE_CHECKS = 25;
 
 const checkToneClasses: Record<HealthCheck["status"], { card: string; row: string }> = {
   online: {

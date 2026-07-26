@@ -25,6 +25,9 @@ const defaults: ServiceInput = {
   check_interval_seconds: 60,
 };
 
+// This matches the backend minimum interval.
+const MIN_CHECK_INTERVAL_SECONDS = 45;
+
 type FieldErrors = Partial<Record<keyof ServiceInput, string>>;
 
 const serviceFields = Object.keys(defaults) as (keyof ServiceInput)[];
@@ -82,8 +85,11 @@ function validateService(values: ServiceInput): FieldErrors {
     errors.slow_threshold_ms = "Enter a threshold of at least 1 millisecond.";
   }
 
-  if (!Number.isInteger(values.check_interval_seconds) || values.check_interval_seconds < 10) {
-    errors.check_interval_seconds = "Enter an interval of at least 10 seconds.";
+  if (
+    !Number.isInteger(values.check_interval_seconds) ||
+    values.check_interval_seconds < MIN_CHECK_INTERVAL_SECONDS
+  ) {
+    errors.check_interval_seconds = `Enter an interval of at least ${MIN_CHECK_INTERVAL_SECONDS} seconds.`;
   }
 
   return errors;
@@ -399,7 +405,7 @@ export function ServiceForm({
               label="Check interval (sec)"
               type="number"
               inputMode="numeric"
-              min={10}
+              min={MIN_CHECK_INTERVAL_SECONDS}
               step={1}
               required
               disabled={submitting}
@@ -412,7 +418,7 @@ export function ServiceForm({
             <FieldFeedback
               hintId="check-interval-hint"
               errorId="check-interval-error"
-              hint="Monitoring runs at this cadence; the minimum is 10 seconds."
+              hint={`The minimum check interval is ${MIN_CHECK_INTERVAL_SECONDS} seconds.`}
               error={fieldErrors.check_interval_seconds}
             />
           </div>

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/monitoring"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -41,6 +42,14 @@ func Migrate(db *gorm.DB) {
 
 	if err != nil {
 		log.Fatal("Failed to run database migrations:", err)
+	}
+
+	// This updates any existing services that were created before the new minimum interval rule.
+	if err := db.Model(&models.Service{}).
+		Where("check_interval_seconds < ?", monitoring.MinCheckIntervalSeconds).
+		Update("check_interval_seconds", monitoring.MinCheckIntervalSeconds).Error; err != nil {
+		// This stops startup if old service intervals could not be normalised.
+		log.Fatal("Failed to normalise service check intervals:", err)
 	}
 
 	log.Println("Database migrations completed")
