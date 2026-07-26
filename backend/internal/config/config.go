@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -21,6 +22,12 @@ type Config struct {
 
 	// FrontendURLs stores the frontend origins that are allowed to call the backend.
 	FrontendURLs []string
+
+	// HealthCheckRetentionDays stores how many days of raw health checks should be kept.
+	HealthCheckRetentionDays int
+
+	// HealthCheckCleanupIntervalHours stores how often the cleanup worker should run.
+	HealthCheckCleanupIntervalHours int
 }
 
 // LoadConfig loads environment variables from .env or the system environment.
@@ -83,11 +90,53 @@ func LoadConfig() Config {
 		}
 	}
 
+	// This sets the default number of days to keep raw health checks.
+	healthCheckRetentionDays := 14
+
+	// This reads the optional HEALTH_CHECK_RETENTION_DAYS value from the environment.
+	healthCheckRetentionDaysRaw := os.Getenv("HEALTH_CHECK_RETENTION_DAYS")
+
+	// This checks whether the retention value was provided.
+	if healthCheckRetentionDaysRaw != "" {
+		// This converts the retention value from text into a number.
+		parsedRetentionDays, err := strconv.Atoi(healthCheckRetentionDaysRaw)
+
+		// This stops the app if the retention value is invalid.
+		if err != nil || parsedRetentionDays < 0 {
+			log.Fatal("HEALTH_CHECK_RETENTION_DAYS must be 0 or greater")
+		}
+
+		// This stores the configured retention value.
+		healthCheckRetentionDays = parsedRetentionDays
+	}
+
+	// This sets the default cleanup interval to once per day.
+	healthCheckCleanupIntervalHours := 24
+
+	// This reads the optional HEALTH_CHECK_CLEANUP_INTERVAL_HOURS value from the environment.
+	healthCheckCleanupIntervalHoursRaw := os.Getenv("HEALTH_CHECK_CLEANUP_INTERVAL_HOURS")
+
+	// This checks whether the cleanup interval value was provided.
+	if healthCheckCleanupIntervalHoursRaw != "" {
+		// This converts the cleanup interval from text into a number.
+		parsedCleanupIntervalHours, err := strconv.Atoi(healthCheckCleanupIntervalHoursRaw)
+
+		// This stops the app if the cleanup interval is invalid.
+		if err != nil || parsedCleanupIntervalHours <= 0 {
+			log.Fatal("HEALTH_CHECK_CLEANUP_INTERVAL_HOURS must be greater than 0")
+		}
+
+		// This stores the configured cleanup interval.
+		healthCheckCleanupIntervalHours = parsedCleanupIntervalHours
+	}
+
 	// This returns all loaded config values so other parts of the backend can use them.
 	return Config{
-		Port:         port,
-		DatabaseURL:  databaseURL,
-		JWTSecret:    jwtSecret,
-		FrontendURLs: cleanFrontendURLs,
+		Port:                            port,
+		DatabaseURL:                     databaseURL,
+		JWTSecret:                       jwtSecret,
+		FrontendURLs:                    cleanFrontendURLs,
+		HealthCheckRetentionDays:        healthCheckRetentionDays,
+		HealthCheckCleanupIntervalHours: healthCheckCleanupIntervalHours,
 	}
 }
