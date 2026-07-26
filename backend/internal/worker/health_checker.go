@@ -229,6 +229,9 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		return
 	}
 
+	// This creates an alert if the service has just moved into a down state.
+	h.createDowntimeAlertIfNeeded(service, status, healthCheck, errorMessage)
+
 	// This starts with a zero duration in case the response time is missing.
 	healthCheckDuration := time.Duration(0)
 
@@ -251,4 +254,67 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 
 	// This logs the result of the health check.
 	log.Printf("Checked service %s: %s", service.Name, status)
+}
+
+// createDowntimeAlertIfNeeded creates an alert when a service changes from not-down to down.
+func (h *HealthChecker) createDowntimeAlertIfNeeded(service models.Service, status string, healthCheck models.HealthCheck, errorMessage string) {
+	// This checks whether the latest check result is not down.
+	if status != "down" {
+		// This stops because we only create downtime alerts in this first version.
+		return
+	}
+
+	// This checks whether the service was already down before this check.
+	if service.CurrentStatus == "down" {
+		// This stops because we do not want duplicate alerts every time the worker checks an already-down service.
+		return
+	}
+
+	// This creates a default message if the health checker did not provide one.
+	if errorMessage == "" {
+		// This gives the alert a useful fallback explanation.
+		errorMessage = "The service failed its health check."
+	}
+
+	// This creates a short title for the alert.
+	title := fmt.Sprintf("%s is down", service.Name)
+
+	// This creates a longer message with the service URL and the failure reason.
+	message := fmt.Sprintf("%s is currently down. URL: %s. Reason: %s", service.Name, service.URL, errorMessage)
+
+	// This creates the alert record that will be saved in PostgreSQL.
+	alert := models.Alert{
+		// This stores the user who owns the service.
+		UserID: service.UserID,
+
+		// This stores the service that triggered the alert.
+		ServiceID: service.ID,
+
+		// This links the alert to the health check that triggered it.
+		HealthCheckID: &healthCheck.ID,
+
+		// This stores the alert type.
+		Type: "service_down",
+
+		// This marks downtime as a critical alert.
+		Severity: "critical",
+
+		// This stores the short alert title.
+		Title: title,
+
+		// This stores the detailed alert message.
+		Message: message,
+	}
+
+	// This inserts the alert into the alerts table.
+	if err := h.DB.Create(&alert).Error; err != nil {
+		// This logs the error but does not stop the health checker, because monitoring should continue.
+		log.Println("Failed to create downtime alert:", err)
+
+		// This stops only the alert creation function.
+		return
+	}
+
+	// This logs that an alert was created.
+	log.Printf("Created downtime alert for service %s", service.Name)
 }

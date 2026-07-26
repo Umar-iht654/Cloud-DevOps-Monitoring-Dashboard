@@ -26,9 +26,17 @@ func Connect(databaseURL string) *gorm.DB {
 
 func Migrate(db *gorm.DB) {
 	err := db.AutoMigrate(
+		// This creates or updates the users table.
 		&models.User{},
+
+		// This creates or updates the services table.
 		&models.Service{},
+
+		// This creates or updates the health_checks table.
 		&models.HealthCheck{},
+
+		// This creates or updates the alerts table.
+		&models.Alert{},
 	)
 
 	if err != nil {

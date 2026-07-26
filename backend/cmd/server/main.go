@@ -36,6 +36,9 @@ func main() {
 	// This creates the dashboard handler and gives it database access.
 	dashboardHandler := handlers.NewDashboardHandler(db)
 
+	// This creates the alert handler and gives it database access.
+	alertHandler := handlers.NewAlertHandler(db)
+
 	// This creates the background health checker and gives it database access.
 	healthChecker := worker.NewHealthChecker(db)
 
@@ -176,6 +179,9 @@ func main() {
 	// This registers the protected route for getting calculated summary stats for one service.
 	services.GET("/:id/summary", healthCheckHandler.GetServiceSummary)
 
+	// This registers the protected route for getting alerts for one service.
+	services.GET("/:id/alerts", alertHandler.GetServiceAlerts)
+
 	// This creates a dashboard route group under /api/dashboard.
 	dashboard := api.Group("/dashboard")
 
@@ -184,6 +190,15 @@ func main() {
 
 	// This registers the protected route for getting dashboard summary stats.
 	dashboard.GET("/summary", dashboardHandler.GetSummary)
+
+	// This creates an alerts route group under /api/alerts.
+	alerts := api.Group("/alerts")
+
+	// This applies JWT authentication middleware to all alert routes.
+	alerts.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+	// This registers the protected route for getting recent alerts owned by the logged-in user.
+	alerts.GET("", alertHandler.GetAlerts)
 
 	// This starts the backend server using the configured port.
 	router.Run(":" + cfg.Port)
