@@ -1,5 +1,10 @@
 function SkeletonBlock({ className }: { className: string }) {
-  return <div className={`skeleton rounded-xl ${className}`} aria-hidden="true" />;
+  return (
+    <div
+      className={`skeleton-block rounded-xl ${className}`}
+      aria-hidden="true"
+    />
+  );
 }
 
 export function AlertsPageSkeleton() {
@@ -10,6 +15,17 @@ export function AlertsPageSkeleton() {
         <SkeletonBlock className="h-4 w-32 bg-slate-700" />
         <SkeletonBlock className="mt-5 h-10 w-64 max-w-full bg-slate-700" />
         <SkeletonBlock className="mt-4 h-5 w-[34rem] max-w-full bg-slate-700" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3" aria-hidden="true">
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="premium-surface rounded-2xl border border-slate-200/80 bg-white p-5"
+          >
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="mt-3 h-8 w-16" />
+          </div>
+        ))}
       </div>
       <div className="premium-panel rounded-3xl p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">

@@ -4,15 +4,16 @@
 
 This document records the frontend quality assurance completed for the Cloud Service Monitoring Dashboard.
 
-- Test date: 25 July 2026
+- Test dates: 25 and 28 July 2026
 - Tester: Ateeq Ur Rehman
-- Browser: Google Chrome on macOS
+- Browser: Google Chrome and Chromium on macOS
 
-The tests covered authentication, routing, dashboard behaviour, service management, monitoring history, selected error and recovery states, responsive design, keyboard accessibility and production build checks.
+The tests covered authentication, routing, dashboard behaviour, service management, monitoring history, alert history, selected error and recovery states, responsive design, keyboard accessibility, the production container and production build checks.
 
 ## Test Environment
 
 - Local React frontend connected to the local Go API
+- Containerised production frontend running through Docker Compose
 - Database: PostgreSQL running through Docker
 - Health-check worker: running through the Go backend
 - Responsive viewports: 320px, 768px and desktop
@@ -110,6 +111,26 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 | DELETE-04 | Press Escape | The dialog closes and focus returns to the original Delete button | Pass |
 | DELETE-05 | Confirm deletion of the temporary service | The service and its history are removed and the dashboard shows a success notice | Pass |
 
+## Alert History Tests
+
+| ID | Test | Expected result | Status |
+|---|---|---|---|
+| ALERT-01 | Open `/alerts` or `/alerts/` directly while signed in | The alert page loads with the correct title, active navigation item and main-content focus | Pass after fix |
+| ALERT-02 | Load an account with no alerts | Summary values show zero and a helpful empty state is displayed | Pass |
+| ALERT-03 | Load recorded alerts | Counts, severity, service links, messages and timestamps match the API data, with newest alerts first | Pass |
+| ALERT-04 | Change a monitored service from available to down | One critical `Service Down` alert is created and appears globally and on the service page | Pass |
+| ALERT-05 | Allow repeated failed checks while the service remains down | The original alert remains and duplicate alerts are not added | Pass |
+| ALERT-06 | Recover the service and cause a later outage | The later outage creates a second alert while preserving the first | Pass |
+| ALERT-07 | Refresh alert history manually | Alert data is reloaded and the refresh control reports progress | Pass |
+| ALERT-08 | Leave the alert page open | Alert data refreshes automatically after 30 seconds | Pass |
+| ALERT-09 | Stop the backend after alerts have loaded | Existing alerts remain visible, a retryable warning appears and the page recovers after restart | Pass |
+| ALERT-10 | View alert history on a service with no alerts and one with alerts | The empty state and service-specific history are both displayed correctly | Pass |
+| ALERT-11 | Inspect the service-specific alert table | The Service column is omitted and the accessible caption describes only the columns present | Pass after fix |
+| ALERT-12 | Review alerts at 320px and 768px | Cards and tables adapt without page-level horizontal overflow or clipped content | Pass after fix |
+| ALERT-13 | Navigate to an overflowing alert table by keyboard | The scrollable region receives focus and has a visible focus indicator | Pass after fix |
+| ALERT-14 | Fail only the service-alert request | The rest of the service detail page can still load with a separate alert-history error state | Source verified |
+| ALERT-15 | Open the delete confirmation for a service with alerts | The warning clearly states that the service, health checks and alert history will be removed | Pass after fix |
+
 ## Responsive and Accessibility Tests
 
 | ID | Test | Expected result | Status |
@@ -124,6 +145,20 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 | A11Y-03 | Navigate by keyboard | Interactive controls have visible focus and sensible keyboard order | Pass |
 | A11Y-04 | Inspect page landmarks | Main navigation, main content and a skip link are present | Pass |
 | A11Y-05 | Inspect status changes | Success, warning and error notices use appropriate status or alert semantics | Pass |
+
+## Containerised Frontend Tests
+
+| ID | Test | Expected result | Status |
+|---|---|---|---|
+| CONT-01 | Build the production frontend image | TypeScript, Vite and the Docker build complete successfully | Pass |
+| CONT-02 | Start the full Docker Compose stack | Frontend, backend, PostgreSQL, Prometheus and Grafana start successfully | Pass |
+| CONT-03 | Request `/healthz` from the frontend container | Nginx returns `200 OK` with a plain-text `ok` response | Pass |
+| CONT-04 | Open or reload `/alerts`, `/services/6` and an unknown client route | Nginx serves the React application so client-side routing can resolve the page | Pass |
+| CONT-05 | Request built and missing asset paths | Hashed assets use long-lived immutable caching and missing assets return `404` | Pass |
+| CONT-06 | Inspect document and server headers | Application documents use `no-cache` and the Nginx version is not exposed | Pass |
+| CONT-07 | Sign in and use dashboard, service and alert pages through the container | The production frontend communicates with the Dockerised API successfully | Pass |
+| CONT-08 | Inspect the running frontend container | Nginx configuration is valid and the process uses the unprivileged `nginx` user | Pass |
+| CONT-09 | Stop and restart the backend while the frontend remains available | Static pages remain available, stale alert data is preserved and polling recovers after restart | Pass |
 
 ## Static Verification
 
@@ -177,15 +212,54 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 - Resolution: The form now blocks in-app route and history navigation while the request is active, shows the browser's native warning for reload or close, and explicitly allows its own successful post-save redirect.
 - Verification: Source review, lint, type checking and production build pass.
 
+### FE-QA-07 — A trailing slash broke alert-page metadata and navigation state
+
+- Severity: Low
+- Previous behaviour: `/alerts/` displayed the alert page but used the not-found document title and did not mark Alerts as the active navigation item.
+- Resolution: Route metadata and navigation matching now use a normalised pathname.
+- Regression result: `/alerts` and `/alerts/` both show `Alert history | Cloud Monitor` and the active Alerts navigation state.
+
+### FE-QA-08 — The alert loading screen used an invalid skeleton class
+
+- Severity: Low
+- Previous behaviour: The alert-page loading component used a class that was not defined by the shared skeleton styles and did not represent the summary cards.
+- Resolution: The loading component now uses the shared skeleton class and includes summary-card placeholders.
+- Verification: Lint, type checking and the production build pass.
+
+### FE-QA-09 — Service alert history described a column that was not present
+
+- Severity: Low
+- Previous behaviour: The service-specific table caption referred to a Service column even though that column is only shown on the global alert page.
+- Resolution: The accessible caption now changes with the table variant.
+- Regression result: The service-specific caption accurately describes severity, type, message and created time.
+
+### FE-QA-10 — The alert table overflow was not keyboard accessible
+
+- Severity: Medium
+- Previous behaviour: The tablet-width global table could scroll horizontally but its scroll container could not receive keyboard focus. The service-specific table also kept an unnecessarily wide minimum size.
+- Resolution: Alert table wrappers are labelled focusable regions with a visible focus indicator, and the service-specific table uses a smaller minimum width.
+- Regression result: The global scroll region receives keyboard focus, while the service-specific table fits without horizontal scrolling at 768px.
+
+### FE-QA-11 — The delete warning omitted alert history
+
+- Severity: Medium
+- Previous behaviour: Deleting a service also removed its alerts, but the confirmation only warned about the service and health checks.
+- Resolution: The dialog now explicitly includes alert history in the permanent deletion warning.
+- Regression result: The updated warning is shown before any deletion can be confirmed.
+
 ## Known Limitations and Follow-up Work
 
 - There is currently no automated frontend unit, component or end-to-end test suite. This report covers manual browser testing plus lint and production build verification.
-- Testing was completed in Chrome on macOS. Safari, Firefox and Windows browser testing remain future cross-browser checks.
+- Testing was completed in Chromium-based browsers on macOS. Safari, Firefox and Windows browser testing remain future cross-browser checks.
 - Logout removes the token from the browser, but the backend does not currently revoke a copied token before its 24-hour expiry.
 - A backend outage during initial session restoration does not yet have a dedicated offline screen.
 - The initial dashboard load requests its main datasets together, so one failed request prevents a partial initial render.
 - Cross-account service isolation was not included in this test run.
 - Independent detail-data failures and delete-request failures remain follow-up fault-injection cases.
+- Alert history is currently limited to 50 global records and eight records on a service page, with no pagination, filters or acknowledgement controls.
+- Only downtime transitions create alert records. Recovery events are not stored in alert history, and a service already down when alerting is introduced is not backfilled until it recovers and fails again.
+- Successful background alert refreshes update the page silently and are not announced to screen-reader users.
+- The frontend API address is set when the production image is built, so custom ports or origins must be kept in sync with backend CORS settings.
 - Prometheus and Grafana are separate operational interfaces and were not included in this React frontend test report.
 
 ## Retest Checklist
@@ -201,4 +275,7 @@ Run these checks after future frontend changes:
 7. Verify dashboard and detail-page recovery after an API failure.
 8. Recheck the 320px, 768px and desktop layouts.
 9. Recheck mobile drawer and delete dialog focus handling.
-10. Remove any test accounts and services created during testing.
+10. Verify the alert empty state, first outage, duplicate suppression, recovery and later re-outage.
+11. Verify manual and automatic alert refresh, including recovery from a backend outage.
+12. Build and start the production frontend container, then check `/healthz`, direct client routes and asset caching.
+13. Remove any test accounts and services created during testing.

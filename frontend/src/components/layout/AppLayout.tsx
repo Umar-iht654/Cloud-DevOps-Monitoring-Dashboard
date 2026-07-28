@@ -40,6 +40,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { confirmNavigation } = useUnsavedChanges();
   const location = useLocation();
   const navigate = useNavigate();
+  const normalizedPathname =
+    location.pathname.length > 1
+      ? location.pathname.replace(/\/+$/, "")
+      : location.pathname;
   const initials = user?.name
     .split(" ")
     .map((part) => part[0])
@@ -78,7 +82,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           Workspace
         </p>
         {navItems.map(({ to, label, icon: Icon, isActive }) => {
-          const active = isActive(location.pathname);
+          const active = isActive(normalizedPathname);
 
           return (
             <Link
