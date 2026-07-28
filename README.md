@@ -109,6 +109,8 @@ The MVP includes:
 - Uptime percentage calculation
 - Dashboard
 - alerts
+- daily/weekly summary reports
+- email alerts
 - Service detail pages
 - Docker Compose setup
 - Basic Prometheus metrics
