@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+Dockerfile
+node_modules/
+dist/
+coverage/
+.vite/
+*.log
+.DS_Store

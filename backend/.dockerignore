@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+Dockerfile
+bin/
+coverage/
+*.out
+*.test
+*.log
+.DS_Store
