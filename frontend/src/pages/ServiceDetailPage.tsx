@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { getServiceAlerts } from "../api/alerts";
 import { getApiErrorMessage } from "../api/client";
 import {
   deleteService,
@@ -7,6 +8,7 @@ import {
   getService,
   getServiceSummary,
 } from "../api/services";
+import { AlertHistory } from "../components/alerts/AlertHistory";
 import { HealthCheckTable } from "../components/services/HealthCheckTable";
 import { ResponseTimeChart } from "../components/services/ResponseTimeChart";
 import { ServiceDetailSkeleton } from "../components/services/ServiceDetailSkeleton";
@@ -19,7 +21,7 @@ import {
   TrashIcon,
 } from "../components/ui/Icons";
 import { StatusBadge } from "../components/ui/StatusBadge";
-import type { HealthCheck, Service, ServiceSummary } from "../types/api";
+import type { Alert, HealthCheck, Service, ServiceSummary } from "../types/api";
 import {
   formatDateTime,
   formatMilliseconds,
@@ -33,6 +35,7 @@ export function ServiceDetailPage() {
   const [service, setService] = useState<Service | null>(null);
   const [summary, setSummary] = useState<ServiceSummary | null>(null);
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -41,6 +44,7 @@ export function ServiceDetailPage() {
   const [refreshError, setRefreshError] = useState("");
   const [summaryError, setSummaryError] = useState("");
   const [checksError, setChecksError] = useState("");
+  const [alertsError, setAlertsError] = useState("");
   const requestVersion = useRef(0);
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
@@ -67,14 +71,17 @@ export function ServiceDetailPage() {
     }
     setSummaryError("");
     setChecksError("");
+    setAlertsError("");
 
     try {
-      const [serviceResult, summaryResult, checksResult] = await Promise.allSettled([
-        getService(id),
-        getServiceSummary(id),
-        // This loads enough recent checks for the chart and table without making the page noisy.
-        getHealthChecks(id, 25),
-      ]);
+      const [serviceResult, summaryResult, checksResult, alertsResult] =
+        await Promise.allSettled([
+          getService(id),
+          getServiceSummary(id),
+          // The table shows 25 by default and lets the user reveal the rest.
+          getHealthChecks(id, 100),
+          getServiceAlerts(id, 8),
+        ]);
       if (currentRequest !== requestVersion.current) return;
 
       const refreshIssues: string[] = [];
@@ -112,6 +119,18 @@ export function ServiceDetailPage() {
           ),
         );
         refreshIssues.push("Health-check history could not be updated.");
+      }
+
+      if (alertsResult.status === "fulfilled") {
+        setAlerts(alertsResult.value.data.alerts);
+      } else {
+        setAlertsError(
+          getApiErrorMessage(
+            alertsResult.reason,
+            "Alert history is temporarily unavailable.",
+          ),
+        );
+        refreshIssues.push("Alert history could not be updated.");
       }
 
       if (silent && refreshIssues.length > 0) {
@@ -255,6 +274,7 @@ export function ServiceDetailPage() {
         : "Unavailable",
     ],
   ];
+  const chartHealthChecks = healthChecks.slice(0, 25);
 
   return (
     <div className="mx-auto w-full max-w-[1500px] px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
@@ -359,7 +379,7 @@ export function ServiceDetailPage() {
         <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">Response time</h2>
-            <p className="mt-1 text-sm text-slate-500">Most recent {healthChecks.length} checks, shown chronologically.</p>
+            <p className="mt-1 text-sm text-slate-500">Most recent {chartHealthChecks.length} checks, shown chronologically.</p>
           </div>
           <p className="text-xs text-slate-500">Last checked {formatDateTime(summary?.last_checked_at)}</p>
         </div>
@@ -370,7 +390,38 @@ export function ServiceDetailPage() {
             onRetry={() => void loadService(true)}
           />
         ) : (
-          <ResponseTimeChart healthChecks={healthChecks} slowThresholdMs={service.slow_threshold_ms} />
+          <ResponseTimeChart healthChecks={chartHealthChecks} slowThresholdMs={service.slow_threshold_ms} />
+        )}
+      </section>
+
+      <section className="premium-panel mt-5 rounded-3xl p-5 sm:p-6">
+        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Recent alerts</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Important downtime transitions recorded separately from routine checks.
+            </p>
+          </div>
+          <Link
+            to="/alerts"
+            className="mt-2 text-sm font-semibold text-cyan-700 transition hover:text-cyan-900 sm:mt-0"
+          >
+            View all alerts
+          </Link>
+        </div>
+        {alertsError && alerts.length === 0 ? (
+          <ErrorState
+            title="Alert history unavailable"
+            message={alertsError}
+            onRetry={() => void loadService(true)}
+          />
+        ) : (
+          <AlertHistory
+            alerts={alerts}
+            showService={false}
+            emptyTitle="No alerts for this service"
+            emptyMessage="No downtime transitions have been recorded for this service."
+          />
         )}
       </section>
 
