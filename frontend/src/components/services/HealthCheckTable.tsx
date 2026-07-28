@@ -3,11 +3,11 @@ import type { HealthCheck } from "../../types/api";
 import { formatDateTime, formatMilliseconds } from "../../utils/formatters";
 import { StatusBadge } from "../ui/StatusBadge";
 
-// This keeps the table readable by showing only the latest checks first.
-const INITIAL_VISIBLE_CHECKS = 10;
+// This keeps the table readable while still showing a useful default history window.
+const INITIAL_VISIBLE_CHECKS = 25;
 
-// This matches the frontend health-check request size.
-const MAX_VISIBLE_CHECKS = 25;
+// The service page can load more history without rendering every row immediately.
+const MAX_VISIBLE_CHECKS = 100;
 
 const checkToneClasses: Record<HealthCheck["status"], { card: string; row: string }> = {
   online: {
@@ -50,11 +50,21 @@ export function HealthCheckTable({ healthChecks }: { healthChecks: HealthCheck[]
     <>
       <div id={historyId}>
         <div className="space-y-3 sm:hidden">
-          {visibleHealthChecks.map((check) => (
-            <article
-              key={check.id}
-              className={`health-row rounded-2xl border p-4 ${checkToneClasses[check.status].card}`}
-            >
+          {visibleHealthChecks.map((check, index) => {
+            const repeatedFailure =
+              check.status === "down" &&
+              index > 0 &&
+              visibleHealthChecks[index - 1]?.status === "down";
+
+            return (
+              <article
+                key={check.id}
+                className={`health-row rounded-2xl border p-4 ${
+                  repeatedFailure
+                    ? "border-slate-200/80 bg-slate-50/60"
+                    : checkToneClasses[check.status].card
+                }`}
+              >
               <div className="flex items-center justify-between gap-3">
                 <StatusBadge status={check.status} />
                 <time className="text-xs text-slate-500" dateTime={check.checked_at}>
@@ -75,13 +85,20 @@ export function HealthCheckTable({ healthChecks }: { healthChecks: HealthCheck[]
                   </p>
                 </div>
               </div>
-              {check.error_message && (
-                <p className="mt-3 break-words rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700 [overflow-wrap:anywhere]">
-                  {check.error_message}
-                </p>
-              )}
-            </article>
-          ))}
+                {check.error_message && (
+                  <p
+                    className={`mt-3 break-words rounded-lg px-3 py-2 text-xs leading-5 [overflow-wrap:anywhere] ${
+                      repeatedFailure
+                        ? "bg-slate-100 text-slate-600"
+                        : "bg-rose-50 text-rose-700"
+                    }`}
+                  >
+                    {check.error_message}
+                  </p>
+                )}
+              </article>
+            );
+          })}
         </div>
 
         <div className="hidden overflow-x-auto sm:block">
@@ -110,11 +127,21 @@ export function HealthCheckTable({ healthChecks }: { healthChecks: HealthCheck[]
               </tr>
             </thead>
             <tbody>
-              {visibleHealthChecks.map((check) => (
-                <tr
-                  key={check.id}
-                  className={`health-row border-b last:border-0 ${checkToneClasses[check.status].row}`}
-                >
+              {visibleHealthChecks.map((check, index) => {
+                const repeatedFailure =
+                  check.status === "down" &&
+                  index > 0 &&
+                  visibleHealthChecks[index - 1]?.status === "down";
+
+                return (
+                  <tr
+                    key={check.id}
+                    className={`health-row border-b last:border-0 ${
+                      repeatedFailure
+                        ? "border-slate-100 bg-slate-50/40"
+                        : checkToneClasses[check.status].row
+                    }`}
+                  >
                   <td className="py-4 pr-4">
                     <StatusBadge status={check.status} />
                   </td>
@@ -130,8 +157,9 @@ export function HealthCheckTable({ healthChecks }: { healthChecks: HealthCheck[]
                   <td className="max-w-xs break-words py-4 pl-4 text-sm leading-5 text-slate-500">
                     {check.error_message || "No errors"}
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

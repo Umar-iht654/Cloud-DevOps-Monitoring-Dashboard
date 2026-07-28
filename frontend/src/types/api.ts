@@ -38,6 +38,19 @@ export interface HealthCheck {
   created_at?: string;
 }
 
+export interface Alert {
+  id: number;
+  user_id: number;
+  service_id: number;
+  health_check_id?: number | null;
+  type: string;
+  severity: string;
+  title: string;
+  message: string;
+  created_at: string;
+  service?: Service;
+}
+
 export interface DashboardSummary {
   total_services: number;
   online_services: number;
@@ -103,4 +116,13 @@ export interface HealthChecksResponse {
   service_id: number;
   returned_count: number;
   health_checks: HealthCheck[];
+}
+
+export interface AlertsResponse {
+  alerts: Alert[];
+  returned_count: number;
+}
+
+export interface ServiceAlertsResponse extends AlertsResponse {
+  service_id: number;
 }
