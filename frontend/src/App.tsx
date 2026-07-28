@@ -29,20 +29,22 @@ function RouteMetadata() {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    const normalizedPathname =
+      pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
     const pageTitle =
-      pathname === "/login"
+      normalizedPathname === "/login"
         ? "Sign in"
-        : pathname === "/register"
+        : normalizedPathname === "/register"
           ? "Create account"
-          : pathname === "/dashboard" || pathname === "/"
+          : normalizedPathname === "/dashboard" || normalizedPathname === "/"
             ? "Service health"
-            : pathname === "/services/new"
+            : normalizedPathname === "/services/new"
               ? "Add service"
-              : pathname === "/alerts"
+              : normalizedPathname === "/alerts"
                 ? "Alert history"
-              : pathname.endsWith("/edit")
+              : normalizedPathname.endsWith("/edit")
                 ? "Edit service"
-                : /^\/services\/[^/]+$/.test(pathname)
+                : /^\/services\/[^/]+$/.test(normalizedPathname)
                   ? "Service details"
                   : "Page not found";
 

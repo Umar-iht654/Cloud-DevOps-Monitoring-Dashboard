@@ -468,7 +468,8 @@ export function ServiceDetailPage() {
               Delete {service.name}?
             </h2>
             <p id="delete-service-description" className="mt-2 text-sm leading-6 text-slate-600">
-              This permanently removes the service and its complete health-check history. This action cannot be undone.
+              This permanently removes the service, its complete health-check
+              history, and its alert history. This action cannot be undone.
             </p>
             <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button

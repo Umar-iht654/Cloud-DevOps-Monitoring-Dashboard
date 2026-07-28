@@ -101,10 +101,25 @@ export function AlertHistory({
         ))}
       </div>
 
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[760px] text-left">
+      <div
+        className="hidden overflow-x-auto rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 md:block"
+        role="region"
+        aria-label={
+          showService
+            ? "Scrollable alert history table"
+            : "Scrollable service alert history table"
+        }
+        tabIndex={0}
+      >
+        <table
+          className={`w-full text-left ${
+            showService ? "min-w-[760px]" : "min-w-[620px]"
+          }`}
+        >
           <caption className="sr-only">
-            Recent alert history including severity, service, type, message and created time.
+            {showService
+              ? "Recent alert history including severity, service, type, message and created time."
+              : "Recent alert history including severity, type, message and created time."}
           </caption>
           <thead>
             <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
