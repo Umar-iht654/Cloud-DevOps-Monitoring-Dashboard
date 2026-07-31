@@ -39,6 +39,9 @@ func main() {
 	// This creates the alert handler and gives it database access.
 	alertHandler := handlers.NewAlertHandler(db)
 
+	// This creates the report handler and gives it database access.
+	reportHandler := handlers.NewReportHandler(db)
+
 	// This creates the background health checker and gives it database access.
 	healthChecker := worker.NewHealthChecker(db)
 
@@ -200,6 +203,9 @@ func main() {
 
 	// This registers the protected route for getting alerts for one service.
 	services.GET("/:id/alerts", alertHandler.GetServiceAlerts)
+
+	// This registers the protected route for getting daily report data for one service.
+	services.GET("/:id/reports/daily", reportHandler.GetServiceDailyReport)
 
 	// This creates a dashboard route group under /api/dashboard.
 	dashboard := api.Group("/dashboard")
