@@ -219,6 +219,15 @@ func main() {
 	// This registers the protected route for getting dashboard summary stats.
 	dashboard.GET("/summary", dashboardHandler.GetSummary)
 
+	// This creates a reports route group under /api/reports.
+	reports := api.Group("/reports")
+
+	// This applies JWT authentication middleware to all report routes.
+	reports.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+	// This registers the protected route for getting overview report data.
+	reports.GET("/overview", reportHandler.GetOverviewReport)
+
 	// This creates an alerts route group under /api/alerts.
 	alerts := api.Group("/alerts")
 
