@@ -207,6 +207,9 @@ func main() {
 	// This registers the protected route for getting daily report data for one service.
 	services.GET("/:id/reports/daily", reportHandler.GetServiceDailyReport)
 
+	// This registers the protected route for getting hourly report data for one service.
+	services.GET("/:id/reports/hourly", reportHandler.GetServiceHourlyReport)
+
 	// This creates a dashboard route group under /api/dashboard.
 	dashboard := api.Group("/dashboard")
 
