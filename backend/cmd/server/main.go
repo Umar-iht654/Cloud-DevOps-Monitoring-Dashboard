@@ -39,6 +39,9 @@ func main() {
 	// This creates the alert handler and gives it database access.
 	alertHandler := handlers.NewAlertHandler(db)
 
+	// This creates the report handler and gives it database access.
+	reportHandler := handlers.NewReportHandler(db)
+
 	// This creates the background health checker and gives it database access.
 	healthChecker := worker.NewHealthChecker(db)
 
@@ -201,6 +204,12 @@ func main() {
 	// This registers the protected route for getting alerts for one service.
 	services.GET("/:id/alerts", alertHandler.GetServiceAlerts)
 
+	// This registers the protected route for getting daily report data for one service.
+	services.GET("/:id/reports/daily", reportHandler.GetServiceDailyReport)
+
+	// This registers the protected route for getting hourly report data for one service.
+	services.GET("/:id/reports/hourly", reportHandler.GetServiceHourlyReport)
+
 	// This creates a dashboard route group under /api/dashboard.
 	dashboard := api.Group("/dashboard")
 
@@ -209,6 +218,15 @@ func main() {
 
 	// This registers the protected route for getting dashboard summary stats.
 	dashboard.GET("/summary", dashboardHandler.GetSummary)
+
+	// This creates a reports route group under /api/reports.
+	reports := api.Group("/reports")
+
+	// This applies JWT authentication middleware to all report routes.
+	reports.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+	// This registers the protected route for getting overview report data.
+	reports.GET("/overview", reportHandler.GetOverviewReport)
 
 	// This creates an alerts route group under /api/alerts.
 	alerts := api.Group("/alerts")
