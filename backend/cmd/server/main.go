@@ -6,6 +6,7 @@ import (
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/config"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/database"
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/email"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/handlers"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/middleware"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/worker"
@@ -24,9 +25,18 @@ func main() {
 	// This creates or updates the database tables using the GORM models.
 	database.Migrate(db)
 
-	// This creates the authentication handler and gives it database access plus the JWT secret.
-	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret)
+	// This creates the email sender using environment-based SMTP settings.
+	emailSender := email.NewSender(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUsername,
+		cfg.SMTPPassword,
+		cfg.SMTPFrom,
+		cfg.AppBaseURL,
+	)
 
+	// This creates the authentication handler and gives it database access, JWT secret and email sender.
+	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, emailSender)
 	// This creates the service handler and gives it database access.
 	serviceHandler := handlers.NewServiceHandler(db)
 
@@ -158,6 +168,12 @@ func main() {
 
 	// This creates an authentication route group under /api/auth.
 	auth := api.Group("/auth")
+
+	// This registers the public route for verifying an email address.
+	auth.GET("/verify-email", authHandler.VerifyEmail)
+
+	// This registers the public route for resending verification emails with abuse prevention.
+	auth.POST("/resend-verification", authHandler.ResendVerificationEmail)
 
 	// This registers the public user registration route.
 	auth.POST("/register", authHandler.Register)
