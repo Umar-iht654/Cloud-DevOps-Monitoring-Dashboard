@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useUnsavedChanges } from "../../context/UnsavedChangesContext";
 import {
+  ActivityIcon,
   AlertIcon,
   CloseIcon,
   GridIcon,
@@ -20,6 +21,12 @@ const navItems = [
     isActive: (pathname: string) =>
       pathname === "/dashboard" ||
       (pathname.startsWith("/services/") && pathname !== "/services/new"),
+  },
+  {
+    to: "/reports",
+    label: "Reports",
+    icon: ActivityIcon,
+    isActive: (pathname: string) => pathname === "/reports",
   },
   {
     to: "/alerts",

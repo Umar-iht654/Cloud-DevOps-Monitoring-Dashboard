@@ -126,3 +126,49 @@ export interface AlertsResponse {
 export interface ServiceAlertsResponse extends AlertsResponse {
   service_id: number;
 }
+
+export type ReportRange = "7d" | "30d" | "90d";
+
+export interface OverviewServiceReport {
+  service_id: number;
+  service_name: string;
+  total_checks: number;
+  successful_checks: number;
+  failed_checks: number;
+  response_time_sample_count: number;
+  average_response_time_ms: number;
+  min_response_time_ms: number | null;
+  max_response_time_ms: number | null;
+  uptime_percentage: number;
+}
+
+export interface OverviewDailyReportPoint {
+  period_start: string;
+  period_end: string;
+  total_checks: number;
+  successful_checks: number;
+  failed_checks: number;
+  response_time_sample_count: number;
+  average_response_time_ms: number;
+  min_response_time_ms: number | null;
+  max_response_time_ms: number | null;
+  uptime_percentage: number;
+}
+
+export interface OverviewReport {
+  range: ReportRange;
+  period_start: string;
+  period_end: string;
+  total_checks: number;
+  successful_checks: number;
+  failed_checks: number;
+  response_time_sample_count: number;
+  average_response_time_ms: number;
+  min_response_time_ms: number | null;
+  max_response_time_ms: number | null;
+  uptime_percentage: number;
+  services: OverviewServiceReport[];
+  daily: OverviewDailyReportPoint[];
+}
+
+export interface OverviewReportResponse extends OverviewReport {}
