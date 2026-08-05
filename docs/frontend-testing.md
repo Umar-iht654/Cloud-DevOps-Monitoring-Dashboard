@@ -4,11 +4,11 @@
 
 This document records the frontend quality assurance completed for the Cloud Service Monitoring Dashboard.
 
-- Test dates: 25 and 28 July 2026
+- Test dates: 25 and 28 July, and 5 August 2026
 - Tester: Ateeq Ur Rehman
 - Browser: Google Chrome and Chromium on macOS
 
-The tests covered authentication, routing, dashboard behaviour, service management, monitoring history, alert history, selected error and recovery states, responsive design, keyboard accessibility, the production container and production build checks.
+The tests covered authentication, routing, dashboard behaviour, service management, monitoring history, alert history, reports, selected error and recovery states, responsive design, keyboard accessibility, the production container and production build checks.
 
 ## Test Environment
 
@@ -130,6 +130,19 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 | ALERT-13 | Navigate to an overflowing alert table by keyboard | The scrollable region receives focus and has a visible focus indicator | Pass after fix |
 | ALERT-14 | Fail only the service-alert request | The rest of the service detail page can still load with a separate alert-history error state | Source verified |
 | ALERT-15 | Open the delete confirmation for a service with alerts | The warning clearly states that the service, health checks and alert history will be removed | Pass after fix |
+
+## Reports Tests
+
+| ID | Test | Expected result | Status |
+|---|---|---|---|
+| REPORT-01 | Open `/reports` while signed in | The report page loads with the correct title, active navigation item and accessible main content | Pass |
+| REPORT-02 | Load an account with no completed summaries | A helpful warming-up empty state is displayed | Pass |
+| REPORT-03 | Load temporary completed summary data | Summary cards, reliability highlights and service comparison show the expected values | Pass |
+| REPORT-04 | Switch between 7-day and 30-day ranges | The selected period and report data update correctly | Pass |
+| REPORT-05 | Review the daily report charts | Uptime, response-time and failed-check charts render with accessible text summaries | Pass |
+| REPORT-06 | Refresh a populated report | Report data reloads and the updated time changes | Pass |
+| REPORT-07 | Review reports on an iPhone SE viewport | Navigation collapses correctly and the summary, charts and service comparison remain usable | Pass |
+| REPORT-08 | Remove the temporary report data and refresh | The page returns to the warming-up empty state | Pass |
 
 ## Responsive and Accessibility Tests
 
@@ -278,4 +291,5 @@ Run these checks after future frontend changes:
 10. Verify the alert empty state, first outage, duplicate suppression, recovery and later re-outage.
 11. Verify manual and automatic alert refresh, including recovery from a backend outage.
 12. Build and start the production frontend container, then check `/healthz`, direct client routes and asset caching.
-13. Remove any test accounts and services created during testing.
+13. Verify reports with both empty and populated summary data, then remove the temporary fixtures.
+14. Remove any test accounts and services created during testing.
