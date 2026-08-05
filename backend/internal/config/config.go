@@ -28,6 +28,24 @@ type Config struct {
 
 	// HealthCheckCleanupIntervalHours stores how often the cleanup worker should run.
 	HealthCheckCleanupIntervalHours int
+
+	// AppBaseURL stores the frontend URL used for verification links.
+	AppBaseURL string
+
+	// SMTPHost stores the SMTP server hostname.
+	SMTPHost string
+
+	// SMTPPort stores the SMTP server port.
+	SMTPPort string
+
+	// SMTPUsername stores the SMTP username.
+	SMTPUsername string
+
+	// SMTPPassword stores the SMTP password or API key.
+	SMTPPassword string
+
+	// SMTPFrom stores the email address used as the sender.
+	SMTPFrom string
 }
 
 // LoadConfig loads environment variables from .env or the system environment.
@@ -130,6 +148,21 @@ func LoadConfig() Config {
 		healthCheckCleanupIntervalHours = parsedCleanupIntervalHours
 	}
 
+	// This reads the frontend base URL used in email verification links.
+	appBaseURL := os.Getenv("APP_BASE_URL")
+
+	// This defaults to the local Docker frontend URL if APP_BASE_URL is missing.
+	if appBaseURL == "" {
+		appBaseURL = "http://localhost:3000"
+	}
+
+	// This reads SMTP email settings from the environment.
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUsername := os.Getenv("SMTP_USERNAME")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	smtpFrom := os.Getenv("SMTP_FROM")
+
 	// This returns all loaded config values so other parts of the backend can use them.
 	return Config{
 		Port:                            port,
@@ -138,5 +171,11 @@ func LoadConfig() Config {
 		FrontendURLs:                    cleanFrontendURLs,
 		HealthCheckRetentionDays:        healthCheckRetentionDays,
 		HealthCheckCleanupIntervalHours: healthCheckCleanupIntervalHours,
+		AppBaseURL:                      appBaseURL,
+		SMTPHost:                        smtpHost,
+		SMTPPort:                        smtpPort,
+		SMTPUsername:                    smtpUsername,
+		SMTPPassword:                    smtpPassword,
+		SMTPFrom:                        smtpFrom,
 	}
 }

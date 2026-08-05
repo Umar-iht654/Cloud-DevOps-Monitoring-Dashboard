@@ -30,6 +30,9 @@ func Migrate(db *gorm.DB) {
 		// This creates or updates the users table.
 		&models.User{},
 
+		// This creates or updates the pending registrations table.
+		&models.PendingRegistration{},
+
 		// This creates or updates the services table.
 		&models.Service{},
 
