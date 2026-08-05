@@ -24,6 +24,9 @@ const ServiceDetailPage = lazy(() =>
 const AlertsPage = lazy(() =>
   import("./pages/AlertsPage").then((module) => ({ default: module.AlertsPage })),
 );
+const ReportsPage = lazy(() =>
+  import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage })),
+);
 
 function RouteMetadata() {
   const { pathname } = useLocation();
@@ -42,7 +45,9 @@ function RouteMetadata() {
               ? "Add service"
               : normalizedPathname === "/alerts"
                 ? "Alert history"
-              : normalizedPathname.endsWith("/edit")
+                : normalizedPathname === "/reports"
+                  ? "Monitoring reports"
+                : normalizedPathname.endsWith("/edit")
                 ? "Edit service"
                 : /^\/services\/[^/]+$/.test(normalizedPathname)
                   ? "Service details"
@@ -71,6 +76,7 @@ function App() {
                 <Route path="/services/:id" element={<ServiceDetailPage />} />
                 <Route path="/services/:id/edit" element={<EditServicePage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
               </Route>
             </Route>
 
