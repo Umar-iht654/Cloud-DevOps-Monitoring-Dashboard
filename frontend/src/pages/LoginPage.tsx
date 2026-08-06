@@ -12,7 +12,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const navigationState = location.state as {
-    registrationSuccess?: boolean;
+    verificationSuccess?: boolean;
     signedOut?: boolean;
     email?: string;
     from?: { pathname?: string; search?: string; hash?: string };
@@ -25,14 +25,14 @@ export function LoginPage() {
   const errorRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [authNotice] = useState(() => sessionStorage.getItem("auth_notice"));
-  const registrationSuccess = Boolean(navigationState?.registrationSuccess);
+  const verificationSuccess = Boolean(navigationState?.verificationSuccess);
   const signedOut = authNotice === "signed_out" || Boolean(navigationState?.signedOut);
   const sessionExpired = authNotice === "session_expired";
   const requestedPath = navigationState?.from?.pathname;
   const safeRequestedPath =
     requestedPath?.startsWith("/") &&
     !requestedPath.startsWith("//") &&
-    !["/login", "/register"].includes(requestedPath)
+    !["/login", "/register", "/verify-email"].includes(requestedPath)
       ? `${requestedPath}${navigationState?.from?.search ?? ""}${navigationState?.from?.hash ?? ""}`
       : "/dashboard";
 
@@ -107,17 +107,17 @@ export function LoginPage() {
         </div>
       )}
 
-      {registrationSuccess && !error && !sessionExpired && (
+      {verificationSuccess && !error && !sessionExpired && (
         <div
           role="status"
           aria-live="polite"
           className="notice-enter mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
         >
-          Account created successfully. Sign in to continue.
+          Email verified successfully. Sign in to start monitoring.
         </div>
       )}
 
-      {signedOut && !registrationSuccess && !sessionExpired && !error && (
+      {signedOut && !verificationSuccess && !sessionExpired && !error && (
         <div
           role="status"
           aria-live="polite"
@@ -196,6 +196,15 @@ export function LoginPage() {
           className="rounded font-semibold text-cyan-700 hover:text-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2"
         >
           Create an account
+        </Link>
+      </p>
+      <p className="mt-3 text-center text-sm text-slate-500">
+        Waiting for a verification email?{" "}
+        <Link
+          to="/verify-email"
+          className="rounded font-semibold text-cyan-700 hover:text-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2"
+        >
+          Request another link
         </Link>
       </p>
     </AuthLayout>

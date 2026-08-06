@@ -1,0 +1,229 @@
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { getApiErrorMessage } from "../api/client";
+import { resendVerificationEmail, verifyEmail } from "../api/auth";
+import { AuthLayout } from "../components/layout/AuthLayout";
+import { AlertIcon, ArrowRightIcon, CheckIcon, PulseIcon } from "../components/ui/Icons";
+import { FormField } from "../components/ui/FormField";
+
+type VerificationStatus = "awaiting" | "verifying" | "verified" | "failed";
+
+interface VerificationNavigationState {
+  email?: string;
+  registrationStarted?: boolean;
+}
+
+export function VerifyEmailPage() {
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigationState = location.state as VerificationNavigationState | null;
+  const token = searchParams.get("token")?.trim() ?? "";
+  const attemptedTokenRef = useRef<string | null>(null);
+  const [status, setStatus] = useState<VerificationStatus>(token ? "verifying" : "awaiting");
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [email, setEmail] = useState(navigationState?.email ?? "");
+  const [emailError, setEmailError] = useState("");
+  const [resendError, setResendError] = useState("");
+  const [resendMessage, setResendMessage] = useState("");
+  const [resending, setResending] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const resendFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (status === "failed" || resendError) {
+      errorRef.current?.focus();
+    }
+  }, [resendError, status]);
+
+  useEffect(() => {
+    if (!token) {
+      setStatus("awaiting");
+      setVerificationMessage("");
+      return;
+    }
+
+    if (attemptedTokenRef.current === token) return;
+    attemptedTokenRef.current = token;
+    setStatus("verifying");
+    setVerificationMessage("");
+
+    verifyEmail(token)
+      .then(({ data }) => {
+        setStatus("verified");
+        setVerificationMessage(data.message);
+      })
+      .catch((requestError) => {
+        setStatus("failed");
+        setVerificationMessage(
+          getApiErrorMessage(requestError, "We could not verify this email link. Request another one and try again."),
+        );
+      });
+  }, [token]);
+
+  const handleResend = async (event: FormEvent) => {
+    event.preventDefault();
+    if (resending) return;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setEmailError("Enter your email address.");
+      setResendError("");
+      requestAnimationFrame(() => resendFormRef.current?.querySelector<HTMLInputElement>("input")?.focus());
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setEmailError("Enter a valid email address.");
+      setResendError("");
+      requestAnimationFrame(() => resendFormRef.current?.querySelector<HTMLInputElement>("input")?.focus());
+      return;
+    }
+
+    setResending(true);
+    setEmailError("");
+    setResendError("");
+    setResendMessage("");
+
+    try {
+      const { data } = await resendVerificationEmail(normalizedEmail);
+      setResendMessage(data.message);
+    } catch (requestError) {
+      setResendError(getApiErrorMessage(requestError, "Unable to request another verification email."));
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const showResendForm = status === "awaiting" || status === "failed";
+  const isRegistrationStart = status === "awaiting" && navigationState?.registrationStarted;
+
+  return (
+    <AuthLayout>
+      {status === "verifying" && (
+        <section className="py-8 text-center" aria-busy="true">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
+            <PulseIcon className="h-7 w-7 animate-pulse" />
+          </div>
+          <p className="mt-6 text-sm font-semibold text-cyan-700">Email verification</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Verifying your email</h1>
+          <p role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-500">
+            This only takes a moment. Please keep this page open.
+          </p>
+        </section>
+      )}
+
+      {status === "verified" && (
+        <section className="py-3 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+            <CheckIcon className="h-7 w-7" />
+          </div>
+          <p className="mt-6 text-sm font-semibold text-emerald-700">Email verified</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Your account is ready</h1>
+          <p role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-500">
+            {verificationMessage || "Email verified successfully. You can now log in."}
+          </p>
+          <Link
+            to="/login"
+            state={{ verificationSuccess: true }}
+            className="primary-action mt-8 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#07111f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20"
+          >
+            Continue to sign in
+            <ArrowRightIcon className="h-4 w-4" />
+          </Link>
+        </section>
+      )}
+
+      {showResendForm && (
+        <section>
+          <div className="mb-7">
+            <p className="mb-2 text-sm font-semibold text-cyan-700">
+              {status === "failed" ? "Verification link unavailable" : "Email verification"}
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
+              {status === "failed" ? "This link can’t be used" : "Check your inbox"}
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {status === "failed"
+                ? "The link may have expired or already been used. Request another one to continue."
+                : isRegistrationStart
+                  ? "We sent a verification link to your email. Open it to finish creating your account."
+                  : "Enter your email address to request another verification link."}
+            </p>
+          </div>
+
+          {status === "failed" && (
+            <div
+              ref={errorRef}
+              role="alert"
+              tabIndex={-1}
+              className="notice-enter mb-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 focus:outline-none"
+            >
+              <AlertIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <span>{verificationMessage}</span>
+            </div>
+          )}
+
+          {resendError && (
+            <div
+              ref={errorRef}
+              role="alert"
+              tabIndex={-1}
+              className="notice-enter mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 focus:outline-none"
+            >
+              {resendError}
+            </div>
+          )}
+
+          {resendMessage && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="notice-enter mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
+            >
+              {resendMessage}
+            </div>
+          )}
+
+          <form ref={resendFormRef} onSubmit={handleResend} noValidate aria-busy={resending} className="space-y-4">
+            <FormField
+              id="verification-email"
+              label="Email address"
+              type="email"
+              autoComplete="email"
+              autoFocus={!token}
+              placeholder="you@example.com"
+              required
+              disabled={resending}
+              error={emailError}
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setEmailError("");
+                setResendError("");
+                setResendMessage("");
+              }}
+            />
+            <button
+              type="submit"
+              disabled={resending}
+              className="primary-action flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#07111f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {resending ? "Requesting link…" : "Send another verification link"}
+              {!resending && <ArrowRightIcon className="h-4 w-4" />}
+            </button>
+          </form>
+
+          <p className="mt-7 text-center text-sm text-slate-500">
+            Already verified?{" "}
+            <Link
+              to="/login"
+              className="rounded font-semibold text-cyan-700 hover:text-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2"
+            >
+              Sign in
+            </Link>
+          </p>
+        </section>
+      )}
+    </AuthLayout>
+  );
+}

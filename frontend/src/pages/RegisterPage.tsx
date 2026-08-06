@@ -75,9 +75,9 @@ export function RegisterPage() {
     setSubmitting(true);
     try {
       await register(normalizedName, normalizedEmail, password);
-      navigate("/login", {
+      navigate("/verify-email", {
         replace: true,
-        state: { registrationSuccess: true, email: normalizedEmail },
+        state: { email: normalizedEmail, registrationStarted: true },
       });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create your account."));

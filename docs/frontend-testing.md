@@ -4,11 +4,11 @@
 
 This document records the frontend quality assurance completed for the Cloud Service Monitoring Dashboard.
 
-- Test dates: 25 and 28 July, and 5 August 2026
+- Test dates: 25 and 28 July, and 5 and 6 August 2026
 - Tester: Ateeq Ur Rehman
 - Browser: Google Chrome and Chromium on macOS
 
-The tests covered authentication, routing, dashboard behaviour, service management, monitoring history, alert history, reports, selected error and recovery states, responsive design, keyboard accessibility, the production container and production build checks.
+The tests covered authentication and email verification, routing, dashboard behaviour, service management, monitoring history, alert history, reports, selected error and recovery states, responsive design, keyboard accessibility, the production container and production build checks.
 
 ## Test Environment
 
@@ -29,7 +29,7 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 | AUTH-03 | Submit incorrect login credentials | A clear authentication error is shown without leaving the page | Pass |
 | AUTH-04 | Submit valid login credentials | The user is signed in and taken to the dashboard | Pass |
 | AUTH-05 | Submit invalid registration values | Required fields, email format, password length and password matching are validated | Pass |
-| AUTH-06 | Register a new account | Account is created and the login page is shown with the email pre-filled | Pass |
+| AUTH-06 | Start a new registration | Registration is held pending, then the user is taken to the verification screen with the email pre-filled | Pass |
 | AUTH-07 | Register an existing email address | The form remains populated and shows `Email is already registered` | Pass |
 | AUTH-08 | Use the password visibility controls | Each password field can be shown and hidden independently | Pass |
 | AUTH-09 | Sign out | The token is cleared, the login page is shown and a success notice appears | Pass after fix |
@@ -40,6 +40,12 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 | AUTH-14 | Cancel Sign out while a service form has unsaved values | The form values and authenticated session both remain intact | Pass after fix |
 | AUTH-15 | Confirm Sign out while a service form has unsaved values | The changes are discarded, the session is cleared and the sign-out notice is displayed | Pass |
 | AUTH-16 | Attempt to sign out while a service save is active | Sign out is blocked until the request settles | Source verified |
+| AUTH-17 | Open `/verify-email` without a token | A clear check-inbox screen and resend form are displayed | Pass |
+| AUTH-18 | Open `/verify-email?token=INVALID_TOKEN` | A useful invalid-or-expired-link error and resend option are shown | Pass |
+| AUTH-19 | Open a valid locally logged verification link | The pending registration is verified and the success screen links back to sign in | Pass |
+| AUTH-20 | Request another link for a non-pending email | The generic backend response is shown without revealing account state | Pass |
+| AUTH-21 | Request another verification link while a request is active | The resend button is disabled to prevent duplicate frontend submissions | Source verified |
+| AUTH-22 | Sign in after verification | The verified account can sign in and reaches the dashboard | Pass |
 
 ## Routing Tests
 
@@ -273,6 +279,7 @@ All executed manual test cases passed after the fixes documented below. Rows mar
 - Only downtime transitions create alert records. Recovery events are not stored in alert history, and a service already down when alerting is introduced is not backfilled until it recovers and fails again.
 - Successful background alert refreshes update the page silently and are not announced to screen-reader users.
 - The frontend API address is set when the production image is built, so custom ports or origins must be kept in sync with backend CORS settings.
+- SMTP is not configured locally. The backend logs verification links for local testing, but delivery to a real inbox still needs a provider and a separate retest.
 - Prometheus and Grafana are separate operational interfaces and were not included in this React frontend test report.
 
 ## Retest Checklist
@@ -292,4 +299,5 @@ Run these checks after future frontend changes:
 11. Verify manual and automatic alert refresh, including recovery from a backend outage.
 12. Build and start the production frontend container, then check `/healthz`, direct client routes and asset caching.
 13. Verify reports with both empty and populated summary data, then remove the temporary fixtures.
-14. Remove any test accounts and services created during testing.
+14. Verify the verification screen, invalid link, resend response and post-verification sign-in flow.
+15. Remove any test accounts and services created during testing.
