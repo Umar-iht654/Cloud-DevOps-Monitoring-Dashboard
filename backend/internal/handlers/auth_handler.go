@@ -336,8 +336,8 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 	// This stores the current time.
 	now := time.Now()
 
-	// This enforces a 10-minute resend cooldown.
-	if now.Sub(pendingRegistration.VerificationSentAt) < 10*time.Minute {
+	// This enforces a 2 resend cooldown.
+	if now.Sub(pendingRegistration.VerificationSentAt) < 2*time.Minute {
 		c.JSON(http.StatusOK, gin.H{
 			"message": genericMessage,
 		})
