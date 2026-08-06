@@ -87,9 +87,7 @@ export interface LoginResponse extends ApiMessage {
   user: User;
 }
 
-export interface RegisterResponse extends ApiMessage {
-  user: User;
-}
+export interface RegisterResponse extends ApiMessage {}
 
 export interface CurrentUserResponse {
   user: User;

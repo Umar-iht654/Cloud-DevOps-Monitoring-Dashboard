@@ -7,6 +7,7 @@ import { UnsavedChangesProvider } from "./context/UnsavedChangesContext";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
 const DashboardPage = lazy(() =>
@@ -39,6 +40,8 @@ function RouteMetadata() {
         ? "Sign in"
         : normalizedPathname === "/register"
           ? "Create account"
+          : normalizedPathname === "/verify-email"
+            ? "Verify email"
           : normalizedPathname === "/dashboard" || normalizedPathname === "/"
             ? "Service health"
             : normalizedPathname === "/services/new"
@@ -68,6 +71,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
 
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>

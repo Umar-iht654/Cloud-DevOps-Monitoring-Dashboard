@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type {
+  ApiMessage,
   CurrentUserResponse,
   LoginResponse,
   RegisterResponse,
@@ -15,6 +16,16 @@ export function register(name: string, email: string, password: string) {
     email,
     password,
   });
+}
+
+export function verifyEmail(token: string) {
+  return api.get<ApiMessage>("/api/auth/verify-email", {
+    params: { token },
+  });
+}
+
+export function resendVerificationEmail(email: string) {
+  return api.post<ApiMessage>("/api/auth/resend-verification", { email });
 }
 
 export function getCurrentUser() {
