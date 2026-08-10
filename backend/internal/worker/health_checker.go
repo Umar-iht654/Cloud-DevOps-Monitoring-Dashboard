@@ -278,8 +278,8 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 
 	// This sends a downtime email only after the alert has been safely saved.
 	if downtimeAlert != nil {
-		// This sends the email outside the transaction so email failure does not roll back the alert.
-		h.sendDowntimeEmail(service, *downtimeAlert, errorMessage)
+		// This sends the email asynchronously so SMTP delays do not block the health-check loop.
+		h.sendDowntimeEmailAsync(service, *downtimeAlert, errorMessage)
 	}
 
 	// This starts with a zero duration in case the response time is missing.
@@ -358,6 +358,24 @@ func (h *HealthChecker) createDowntimeAlertIfNeeded(tx *gorm.DB, service models.
 
 	// This returns the created alert so the caller can send an email after the transaction commits.
 	return &alert, nil
+}
+
+// sendDowntimeEmailAsync sends a downtime notification without blocking the health-check loop.
+func (h *HealthChecker) sendDowntimeEmailAsync(service models.Service, alert models.Alert, errorMessage string) {
+	// This starts email sending in a separate goroutine so SMTP network I/O cannot block service checks.
+	go func() {
+		// This prevents an unexpected email panic from crashing the background worker.
+		defer func() {
+			// This checks whether the goroutine panicked.
+			if recovered := recover(); recovered != nil {
+				// This logs the panic instead of letting it crash the application.
+				log.Printf("Recovered from downtime email panic for service %s: %v", service.Name, recovered)
+			}
+		}()
+
+		// This sends or safely skips the downtime email.
+		h.sendDowntimeEmail(service, alert, errorMessage)
+	}()
 }
 
 // sendDowntimeEmail sends a downtime notification to the service owner.
