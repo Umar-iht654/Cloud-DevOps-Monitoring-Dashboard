@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/email"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/metrics"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/monitoring"
@@ -23,10 +24,13 @@ type HealthChecker struct {
 
 	// ScanInterval controls how often the worker scans the database for services that need checking.
 	ScanInterval time.Duration
+
+	// EmailSender sends downtime email notifications.
+	EmailSender *email.Sender
 }
 
 // NewHealthChecker creates a new background health checker.
-func NewHealthChecker(db *gorm.DB) *HealthChecker {
+func NewHealthChecker(db *gorm.DB, emailSender *email.Sender) *HealthChecker {
 	// This returns a HealthChecker with database access, an HTTP client and a scan interval.
 	return &HealthChecker{
 		// This stores the database connection inside the health checker.
@@ -40,6 +44,9 @@ func NewHealthChecker(db *gorm.DB) *HealthChecker {
 
 		// This makes the worker scan for due services every 10 seconds.
 		ScanInterval: 10 * time.Second,
+
+		// This stores the email sender used for downtime notifications.
+		EmailSender: emailSender,
 	}
 }
 
@@ -227,6 +234,9 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		CheckedAt: time.Now(),
 	}
 
+	// This stores the downtime alert if one is created during the transaction.
+	var downtimeAlert *models.Alert
+
 	// This runs the health check save, alert creation and service status update as one database transaction.
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		// This inserts the health check record into the health_checks table.
@@ -236,10 +246,16 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		}
 
 		// This creates an alert if the service has just moved into a down state.
-		if err := h.createDowntimeAlertIfNeeded(tx, service, status, healthCheck, errorMessage); err != nil {
+		createdAlert, err := h.createDowntimeAlertIfNeeded(tx, service, status, healthCheck, errorMessage)
+
+		// This checks whether alert creation failed.
+		if err != nil {
 			// This returns the error so the transaction is rolled back.
 			return err
 		}
+
+		// This stores the alert so an email can be sent after the database transaction commits.
+		downtimeAlert = createdAlert
 
 		// This updates the current_status field on the monitored service.
 		if err := tx.Model(&models.Service{}).Where("id = ?", service.ID).Update("current_status", status).Error; err != nil {
@@ -260,6 +276,12 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 		return
 	}
 
+	// This sends a downtime email only after the alert has been safely saved.
+	if downtimeAlert != nil {
+		// This sends the email outside the transaction so email failure does not roll back the alert.
+		h.sendDowntimeEmail(service, *downtimeAlert, errorMessage)
+	}
+
 	// This starts with a zero duration in case the response time is missing.
 	healthCheckDuration := time.Duration(0)
 
@@ -276,17 +298,17 @@ func (h *HealthChecker) saveHealthCheck(service models.Service, status string, h
 }
 
 // createDowntimeAlertIfNeeded creates an alert when a service changes from not-down to down.
-func (h *HealthChecker) createDowntimeAlertIfNeeded(tx *gorm.DB, service models.Service, status string, healthCheck models.HealthCheck, errorMessage string) error {
+func (h *HealthChecker) createDowntimeAlertIfNeeded(tx *gorm.DB, service models.Service, status string, healthCheck models.HealthCheck, errorMessage string) (*models.Alert, error) {
 	// This checks whether the latest check result is not down.
 	if status != "down" {
 		// This stops because we only create downtime alerts in this first version.
-		return nil
+		return nil, nil
 	}
 
 	// This checks whether the service was already down before this check.
 	if service.CurrentStatus == "down" {
-		// This stops because we do not want duplicate alerts every time the worker checks an already-down service.
-		return nil
+		// This stops because we do not want duplicate alerts or duplicate emails while the service remains down.
+		return nil, nil
 	}
 
 	// This creates a default message if the health checker did not provide one.
@@ -328,12 +350,54 @@ func (h *HealthChecker) createDowntimeAlertIfNeeded(tx *gorm.DB, service models.
 	// This inserts the alert into the alerts table inside the same transaction as the health check and status update.
 	if err := tx.Create(&alert).Error; err != nil {
 		// This returns the error so the transaction can be rolled back.
-		return fmt.Errorf("failed to create downtime alert: %w", err)
+		return nil, fmt.Errorf("failed to create downtime alert: %w", err)
 	}
 
 	// This logs that an alert was created.
 	log.Printf("Created downtime alert for service %s", service.Name)
 
-	// This returns nil because the alert was created successfully.
-	return nil
+	// This returns the created alert so the caller can send an email after the transaction commits.
+	return &alert, nil
+}
+
+// sendDowntimeEmail sends a downtime notification to the service owner.
+func (h *HealthChecker) sendDowntimeEmail(service models.Service, alert models.Alert, errorMessage string) {
+	// This checks whether the email sender was provided.
+	if h.EmailSender == nil {
+		// This logs the skipped email without crashing the health checker.
+		log.Printf("Skipped downtime email for service %s because email sender is not configured", service.Name)
+		return
+	}
+
+	// This creates a variable to store the service owner.
+	var user models.User
+
+	// This loads the service owner so the email can be sent to their account email address.
+	if err := h.DB.First(&user, service.UserID).Error; err != nil {
+		// This logs the failure without crashing the health checker.
+		log.Printf("Failed to load user %d for downtime email: %v", service.UserID, err)
+		return
+	}
+
+	// This creates a fallback failure reason if one was not provided.
+	if errorMessage == "" {
+		// This uses the alert message as a useful fallback.
+		errorMessage = alert.Message
+	}
+
+	// This sends or safely skips the downtime email.
+	if err := h.EmailSender.SendDowntimeAlertEmail(
+		user.Email,
+		service.Name,
+		service.URL,
+		errorMessage,
+		alert.CreatedAt,
+	); err != nil {
+		// This logs the email failure without deleting the alert or crashing the worker.
+		log.Printf("Failed to send downtime email for service %s to user %d: %v", service.Name, service.UserID, err)
+		return
+	}
+
+	// This logs that the downtime email was handled.
+	log.Printf("Downtime email handled for service %s", service.Name)
 }
