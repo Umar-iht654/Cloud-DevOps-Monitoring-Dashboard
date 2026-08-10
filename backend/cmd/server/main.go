@@ -52,8 +52,8 @@ func main() {
 	// This creates the report handler and gives it database access.
 	reportHandler := handlers.NewReportHandler(db)
 
-	// This creates the background health checker and gives it database access.
-	healthChecker := worker.NewHealthChecker(db)
+	// This creates the background health checker and gives it database and email sender access.
+	healthChecker := worker.NewHealthChecker(db, emailSender)
 
 	// This starts the health checker in a goroutine so it runs in the background while the API server runs.
 	go healthChecker.Start()
