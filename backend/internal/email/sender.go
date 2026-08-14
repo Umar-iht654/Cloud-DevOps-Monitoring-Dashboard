@@ -2,8 +2,10 @@ package email
 
 import (
 	"fmt"
+	"html"
 	"log"
 	"net/smtp"
+	"strings"
 	"time"
 )
 
@@ -68,36 +70,78 @@ func (s *Sender) SendVerificationEmail(toEmail string, token string) error {
 	// This creates the email subject.
 	subject := "Verify your Cloud Monitor email address"
 
-	// This creates the plain-text email body.
-	body := fmt.Sprintf(
-		"Welcome to Cloud Monitor.\n\nVerify your email address by opening this link:\n\n%s\n\nThis link will expire soon.\n",
-		verificationURL,
-	)
+	// This escapes the verification URL before placing it into HTML.
+	safeVerificationURL := html.EscapeString(verificationURL)
 
-	// This creates the full raw email message.
-	message := []byte(
-		"From: " + s.SMTPFrom + "\r\n" +
-			"To: " + toEmail + "\r\n" +
-			"Subject: " + subject + "\r\n" +
-			"Content-Type: text/plain; charset=UTF-8\r\n" +
-			"\r\n" +
-			body,
-	)
+	// This creates the HTML email body.
+	body := fmt.Sprintf(`
+<!doctype html>
+<html>
+  <body style="margin:0; padding:0; background:#f4f7fb; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f4f7fb; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px; background:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:28px 32px; background:#0f172a;">
+                <h1 style="margin:0; color:#ffffff; font-size:22px; line-height:1.3;">
+                  Verify your email
+                </h1>
+                <p style="margin:8px 0 0; color:#cbd5e1; font-size:14px; line-height:1.6;">
+                  Finish creating your Cloud Monitor account.
+                </p>
+              </td>
+            </tr>
 
-	// This builds the SMTP server address.
-	address := s.SMTPHost + ":" + s.SMTPPort
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 16px; font-size:16px; line-height:1.6;">
+                  Welcome to <strong>Cloud Monitor</strong>.
+                </p>
 
-	// This creates SMTP authentication.
-	auth := smtp.PlainAuth("", s.SMTPUsername, s.SMTPPassword, s.SMTPHost)
+                <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#4b5563;">
+                  Please verify your email address to activate your account and start monitoring your services.
+                </p>
 
-	// This sends the email through the configured SMTP server.
-	if err := smtp.SendMail(address, auth, s.SMTPFrom, []string{toEmail}, message); err != nil {
-		// This returns the error so the caller can decide what to do.
-		return err
-	}
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
+                  <tr>
+                    <td>
+                      <a href="%s" style="display:inline-block; background:#0891b2; color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:13px 20px; border-radius:10px;">
+                        Verify email address
+                      </a>
+                    </td>
+                  </tr>
+                </table>
 
-	// This returns nil because the email was sent.
-	return nil
+                <p style="margin:0 0 8px; font-size:13px; line-height:1.6; color:#6b7280;">
+                  If the button does not work, copy and paste this link into your browser:
+                </p>
+
+                <p style="margin:0; font-size:13px; line-height:1.6; word-break:break-all;">
+                  <a href="%s" style="color:#0891b2;">%s</a>
+                </p>
+
+                <div style="height:1px; background:#e5e7eb; margin:28px 0;"></div>
+
+                <p style="margin:0; font-size:13px; line-height:1.6; color:#6b7280;">
+                  This verification link will expire soon. If you did not create a Cloud Monitor account, you can ignore this email.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:18px 0 0; font-size:12px; color:#94a3b8;">
+            Cloud Monitor · Service monitoring and reliability alerts
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`, safeVerificationURL, safeVerificationURL, safeVerificationURL)
+
+	// This sends the HTML email.
+	return s.sendHTMLEmail(toEmail, subject, body)
 }
 
 // SendDowntimeAlertEmail sends or safely skips a downtime notification email.
@@ -125,21 +169,123 @@ func (s *Sender) SendDowntimeAlertEmail(toEmail string, serviceName string, serv
 	// This creates the email subject.
 	subject := fmt.Sprintf("Service down: %s", serviceName)
 
-	// This creates the plain-text email body.
-	body := fmt.Sprintf(
-		"Cloud Monitor detected that one of your services is down.\n\nService: %s\nURL: %s\nReason: %s\nAlert time: %s\n\nThe alert has also been saved in your dashboard.\n",
-		serviceName,
-		serviceURL,
-		failureReason,
-		alertTime.Format(time.RFC1123),
-	)
+	// This escapes dynamic values before placing them into HTML.
+	safeServiceName := html.EscapeString(serviceName)
+	safeServiceURL := html.EscapeString(serviceURL)
+	safeFailureReason := html.EscapeString(failureReason)
+	safeAlertTime := html.EscapeString(alertTime.Format("Mon, 02 Jan 2006 15:04:05 MST"))
+
+	// This creates the HTML email body.
+	body := fmt.Sprintf(`
+<!doctype html>
+<html>
+  <body style="margin:0; padding:0; background:#f4f7fb; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f4f7fb; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:600px; background:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:28px 32px; background:#991b1b;">
+                <p style="margin:0 0 8px; color:#fecaca; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">
+                  Downtime alert
+                </p>
+                <h1 style="margin:0; color:#ffffff; font-size:22px; line-height:1.3;">
+                  %s is down
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 20px; font-size:15px; line-height:1.6; color:#4b5563;">
+                  Cloud Monitor detected that one of your monitored services has failed its health check.
+                </p>
+
+                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 24px;">
+                  <tr>
+                    <td style="padding:12px 0; border-bottom:1px solid #e5e7eb; width:140px; color:#6b7280; font-size:14px;">
+                      Service
+                    </td>
+                    <td style="padding:12px 0; border-bottom:1px solid #e5e7eb; font-size:14px; font-weight:700;">
+                      %s
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0; border-bottom:1px solid #e5e7eb; color:#6b7280; font-size:14px;">
+                      URL
+                    </td>
+                    <td style="padding:12px 0; border-bottom:1px solid #e5e7eb; font-size:14px; word-break:break-all;">
+                      <a href="%s" style="color:#0891b2;">%s</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0; border-bottom:1px solid #e5e7eb; color:#6b7280; font-size:14px;">
+                      Reason
+                    </td>
+                    <td style="padding:12px 0; border-bottom:1px solid #e5e7eb; font-size:14px;">
+                      %s
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0; color:#6b7280; font-size:14px;">
+                      Alert time
+                    </td>
+                    <td style="padding:12px 0; font-size:14px;">
+                      %s
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 24px; font-size:14px; line-height:1.6; color:#4b5563;">
+                  The alert has also been saved in your dashboard. Repeated failed checks will not create duplicate downtime emails while the service remains down.
+                </p>
+
+                <div style="padding:14px 16px; background:#fef2f2; border:1px solid #fecaca; border-radius:12px;">
+                  <p style="margin:0; font-size:13px; line-height:1.6; color:#7f1d1d;">
+                    Check the service, confirm whether the outage is expected, and update the monitored URL or service configuration if needed.
+                  </p>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:18px 0 0; font-size:12px; color:#94a3b8;">
+            Cloud Monitor · Automated downtime notification
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`, safeServiceName, safeServiceName, safeServiceURL, safeServiceURL, safeFailureReason, safeAlertTime)
+
+	// This sends the HTML email.
+	if err := s.sendHTMLEmail(toEmail, subject, body); err != nil {
+		// This returns the error so the caller can log it without crashing the worker.
+		return err
+	}
+
+	// This logs that the email was sent successfully.
+	log.Printf("Sent downtime email to %s for service %s", toEmail, serviceName)
+
+	// This returns nil because the email was sent.
+	return nil
+}
+
+// sendHTMLEmail sends an HTML email through the configured SMTP server.
+func (s *Sender) sendHTMLEmail(toEmail string, subject string, body string) error {
+	// This removes newline characters from headers to reduce header injection risk.
+	cleanFrom := sanitizeEmailHeader(s.SMTPFrom)
+	cleanTo := sanitizeEmailHeader(toEmail)
+	cleanSubject := sanitizeEmailHeader(subject)
 
 	// This creates the full raw email message.
 	message := []byte(
-		"From: " + s.SMTPFrom + "\r\n" +
-			"To: " + toEmail + "\r\n" +
-			"Subject: " + subject + "\r\n" +
-			"Content-Type: text/plain; charset=UTF-8\r\n" +
+		"From: Cloud Monitor <" + cleanFrom + ">\r\n" +
+			"To: " + cleanTo + "\r\n" +
+			"Subject: " + cleanSubject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=UTF-8\r\n" +
 			"\r\n" +
 			body,
 	)
@@ -151,14 +297,21 @@ func (s *Sender) SendDowntimeAlertEmail(toEmail string, serviceName string, serv
 	auth := smtp.PlainAuth("", s.SMTPUsername, s.SMTPPassword, s.SMTPHost)
 
 	// This sends the email through the configured SMTP server.
-	if err := smtp.SendMail(address, auth, s.SMTPFrom, []string{toEmail}, message); err != nil {
-		// This returns the error so the caller can log it without crashing the worker.
+	if err := smtp.SendMail(address, auth, cleanFrom, []string{cleanTo}, message); err != nil {
+		// This returns the error so the caller can decide what to do.
 		return err
 	}
 
-	// This logs that the email was sent successfully.
-	log.Printf("Sent downtime email to %s for service %s", toEmail, serviceName)
-
 	// This returns nil because the email was sent.
 	return nil
+}
+
+// sanitizeEmailHeader removes characters that should not appear in email headers.
+func sanitizeEmailHeader(value string) string {
+	// This removes carriage returns and line breaks from header values.
+	value = strings.ReplaceAll(value, "\r", "")
+	value = strings.ReplaceAll(value, "\n", "")
+
+	// This removes extra spaces before returning the header value.
+	return strings.TrimSpace(value)
 }
