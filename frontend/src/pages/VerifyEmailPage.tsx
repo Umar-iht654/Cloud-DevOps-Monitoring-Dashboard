@@ -35,9 +35,10 @@ export function VerifyEmailPage() {
   const [emailError, setEmailError] = useState("");
   const [resendError, setResendError] = useState("");
   const [resending, setResending] = useState(false);
-  const [cooldownRemaining, setCooldownRemaining] = useState(
-    !token && navigationState?.registrationStarted ? RESEND_COOLDOWN_SECONDS : 0,
+  const [cooldownDeadline, setCooldownDeadline] = useState<number | null>(
+    !token && navigationState?.registrationStarted ? Date.now() + RESEND_COOLDOWN_SECONDS * 1000 : null,
   );
+  const [, setCooldownTick] = useState(0);
   const errorRef = useRef<HTMLDivElement>(null);
   const resendFormRef = useRef<HTMLFormElement>(null);
 
@@ -47,16 +48,27 @@ export function VerifyEmailPage() {
     }
   }, [resendError, status]);
 
-  useEffect(() => {
-    if (cooldownRemaining <= 0) return undefined;
+  const cooldownRemaining = cooldownDeadline
+    ? Math.max(0, Math.ceil((cooldownDeadline - Date.now()) / 1000))
+    : 0;
 
-    // Keep the visible timer aligned with the backend resend cooldown without letting it go below zero.
-    const timerId = window.setInterval(() => {
-      setCooldownRemaining((currentCooldown) => Math.max(0, currentCooldown - 1));
-    }, 1000);
+  useEffect(() => {
+    if (!cooldownDeadline) return undefined;
+
+    // Recalculate against wall-clock time so backgrounded tabs do not extend the visible cooldown.
+    const refreshCooldown = () => {
+      if (cooldownDeadline <= Date.now()) {
+        setCooldownDeadline(null);
+        return;
+      }
+      setCooldownTick((currentTick) => currentTick + 1);
+    };
+
+    refreshCooldown();
+    const timerId = window.setInterval(refreshCooldown, 1000);
 
     return () => window.clearInterval(timerId);
-  }, [cooldownRemaining]);
+  }, [cooldownDeadline]);
 
   useEffect(() => {
     if (!token) {
@@ -109,7 +121,7 @@ export function VerifyEmailPage() {
     try {
       await resendVerificationEmail(normalizedEmail);
       setEmail(normalizedEmail);
-      setCooldownRemaining(RESEND_COOLDOWN_SECONDS);
+      setCooldownDeadline(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
     } catch (requestError) {
       setResendError(getApiErrorMessage(requestError, "Unable to request another verification email."));
     } finally {
@@ -232,7 +244,8 @@ export function VerifyEmailPage() {
             </button>
             {isCooldownActive && (
               <p role="status" aria-live="polite" className="text-sm leading-6 text-slate-500">
-                A verification email has been sent. You can request another when the timer ends.
+                If the address is eligible for another verification email, it will be sent.
+                You can request again when the timer ends.
               </p>
             )}
           </form>

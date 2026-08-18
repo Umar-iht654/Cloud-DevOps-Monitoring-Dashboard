@@ -160,20 +160,24 @@ export function ServiceDetailPage() {
   }, [loadService]);
 
   useEffect(() => {
-    if (!service) return;
+    if (!service || !id) return;
+
+    // Only canonicalise when the loaded service belongs to the current route.
+    if (String(service.id) !== id) return;
 
     const canonicalPath = servicePath(service.id, service.name);
     // Keep readable service URLs canonical after legacy or stale-slug visits.
     if (!slug || slug !== serviceSlug(service.name)) {
       navigate(canonicalPath, { replace: true, state: location.state });
     }
-  }, [location.state, navigate, service, slug]);
+  }, [id, location.state, navigate, service, slug]);
 
   useEffect(() => {
     if (!routeFeedback?.created && !routeFeedback?.updated) return;
-    if (!service || !slug || slug !== serviceSlug(service.name)) return;
+    if (!service || !id || String(service.id) !== id) return;
+    if (!slug || slug !== serviceSlug(service.name)) return;
     navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, navigate, routeFeedback?.created, routeFeedback?.updated, service, slug]);
+  }, [id, location.pathname, navigate, routeFeedback?.created, routeFeedback?.updated, service, slug]);
 
   useEffect(() => {
     deletingRef.current = deleting;
