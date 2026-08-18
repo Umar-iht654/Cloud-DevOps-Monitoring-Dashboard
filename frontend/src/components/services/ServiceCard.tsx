@@ -7,6 +7,7 @@ import {
   formatRelativeTime,
   hostnameFromUrl,
 } from "../../utils/formatters";
+import { servicePath } from "../../utils/serviceRoutes";
 import { ArrowRightIcon, ClockIcon, ExternalLinkIcon, GlobeIcon } from "../ui/Icons";
 import { StatusBadge } from "../ui/StatusBadge";
 import { positionSpotlight } from "../../utils/motion";
@@ -129,7 +130,7 @@ export function ServiceCard({
               : formatRelativeTime(summary?.last_checked_at)}
         </span>
         <Link
-          to={`/services/${service.id}`}
+          to={servicePath(service.id, service.name)}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1 text-xs font-semibold text-cyan-700 transition hover:text-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/30"
         >
           View details

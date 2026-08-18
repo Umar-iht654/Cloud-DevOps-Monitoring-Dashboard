@@ -50,9 +50,9 @@ function RouteMetadata() {
                 ? "Alert history"
                 : normalizedPathname === "/reports"
                   ? "Monitoring reports"
-                : normalizedPathname.endsWith("/edit")
+                : /^\/services\/[^/]+(?:\/[^/]+)?\/edit$/.test(normalizedPathname)
                 ? "Edit service"
-                : /^\/services\/[^/]+$/.test(normalizedPathname)
+                : /^\/services\/[^/]+(?:\/[^/]+)?$/.test(normalizedPathname)
                   ? "Service details"
                   : "Page not found";
 
@@ -77,6 +77,8 @@ function App() {
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/services/new" element={<AddServicePage />} />
+                <Route path="/services/:id/:slug" element={<ServiceDetailPage />} />
+                <Route path="/services/:id/:slug/edit" element={<EditServicePage />} />
                 <Route path="/services/:id" element={<ServiceDetailPage />} />
                 <Route path="/services/:id/edit" element={<EditServicePage />} />
                 <Route path="/alerts" element={<AlertsPage />} />

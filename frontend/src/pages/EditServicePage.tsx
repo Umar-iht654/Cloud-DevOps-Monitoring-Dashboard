@@ -7,17 +7,20 @@ import { ErrorState } from "../components/ui/ErrorState";
 import { ArrowLeftIcon } from "../components/ui/Icons";
 import { InlineLoader } from "../components/ui/InlineLoader";
 import type { ServiceInput } from "../types/api";
+import { servicePath } from "../utils/serviceRoutes";
 
 export function EditServicePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [initialValues, setInitialValues] = useState<ServiceInput | null>(null);
+  const [serviceName, setServiceName] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const requestVersionRef = useRef(0);
   const submitInFlightRef = useRef(false);
+  const savedServiceNameRef = useRef("");
 
   const loadService = useCallback(async () => {
     const currentRequest = ++requestVersionRef.current;
@@ -34,6 +37,8 @@ export function EditServicePage() {
       const { data } = await getService(id);
       if (currentRequest !== requestVersionRef.current) return;
       const service = data.service;
+      setServiceName(service.name);
+      savedServiceNameRef.current = service.name;
       setInitialValues({
         name: service.name,
         url: service.url,
@@ -63,7 +68,8 @@ export function EditServicePage() {
     setError("");
 
     try {
-      await updateService(id, values);
+      const { data } = await updateService(id, values);
+      savedServiceNameRef.current = data.service.name || values.name;
       return true;
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to update the service."));
@@ -77,7 +83,7 @@ export function EditServicePage() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
       <Link
-        to={id ? `/services/${id}` : "/dashboard"}
+        to={id && serviceName ? servicePath(id, serviceName) : "/dashboard"}
         aria-disabled={submitting}
         tabIndex={submitting ? -1 : undefined}
         onClick={(event) => {
@@ -113,13 +119,14 @@ export function EditServicePage() {
           submittingLabel="Saving changes…"
           error={error}
           onSubmit={handleSubmit}
-          onSubmitSuccess={() =>
-            navigate(`/services/${id}`, {
+          onSubmitSuccess={() => {
+            if (!id) return;
+            navigate(servicePath(id, savedServiceNameRef.current), {
               replace: true,
               state: { updated: true },
-            })
-          }
-          onCancel={() => navigate(`/services/${id}`)}
+            });
+          }}
+          onCancel={() => navigate(id && serviceName ? servicePath(id, serviceName) : "/dashboard")}
           onValuesChange={() => setError("")}
         />
       )}

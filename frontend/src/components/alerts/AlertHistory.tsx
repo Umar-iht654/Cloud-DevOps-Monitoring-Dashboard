@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Alert } from "../../types/api";
 import { formatDateTime } from "../../utils/formatters";
+import { servicePath } from "../../utils/serviceRoutes";
 import { AlertIcon, ArrowRightIcon } from "../ui/Icons";
 
 interface AlertHistoryProps {
@@ -89,7 +90,7 @@ export function AlertHistory({
               </span>
               {showService && (
                 <Link
-                  to={`/services/${alert.service_id}`}
+                  to={servicePath(alert.service_id, serviceName(alert))}
                   className="inline-flex min-w-0 items-center gap-1.5 text-sm font-semibold text-cyan-700 transition hover:text-cyan-900"
                 >
                   <span className="max-w-52 truncate">{serviceName(alert)}</span>
@@ -154,7 +155,7 @@ export function AlertHistory({
                 {showService && (
                   <td className="px-4 py-4">
                     <Link
-                      to={`/services/${alert.service_id}`}
+                      to={servicePath(alert.service_id, serviceName(alert))}
                       className="inline-flex max-w-48 items-center gap-1.5 font-semibold text-cyan-700 transition hover:text-cyan-900"
                     >
                       <span className="truncate">{serviceName(alert)}</span>

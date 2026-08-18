@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -186,6 +187,22 @@ type overviewReportTotals struct {
 
 	// UptimePercentage stores the overall uptime percentage.
 	UptimePercentage float64 `gorm:"column:uptime_percentage"`
+}
+
+func maxTime(left time.Time, right time.Time) time.Time {
+	if left.After(right) {
+		return left
+	}
+
+	return right
+}
+
+func calculateOverviewPeriodStart(requestedStart time.Time, earliestServiceCreatedAt sql.NullTime) time.Time {
+	if earliestServiceCreatedAt.Valid && earliestServiceCreatedAt.Time.After(requestedStart) {
+		return earliestServiceCreatedAt.Time
+	}
+
+	return requestedStart
 }
 
 // GetServiceDailyReport returns daily summary data for one service owned by the logged-in user.
@@ -443,17 +460,29 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 		now.Location(),
 	)
 
-	// This calculates the start of the report window.
+	// This calculates the requested maximum lookback window.
 	// For a 7-day report, this means the previous 6 completed days plus today so far.
-	periodStart := currentDayStart.AddDate(0, 0, -(days - 1))
+	requestedPeriodStart := currentDayStart.AddDate(0, 0, -(days - 1))
 
-	// This ends the report at the last completed hour, because current-hour summaries do not exist yet.
-	periodEnd := currentHourStart
+	var earliestServiceCreatedAt sql.NullTime
+	if err := h.DB.
+		Model(&models.Service{}).
+		Where("user_id = ?", userID).
+		Select("MIN(created_at)").
+		Scan(&earliestServiceCreatedAt).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to load report period"})
+		return
+	}
+
+	periodStart := calculateOverviewPeriodStart(requestedPeriodStart, earliestServiceCreatedAt)
+	periodEnd := now
+	completedHourSummaryStart := maxTime(periodStart, currentDayStart)
+	rawCurrentHourStart := maxTime(periodStart, currentHourStart)
 
 	// This stores the overall totals returned from the database.
 	var totals overviewReportTotals
 
-	// This calculates totals across completed daily summaries and today's completed hourly summaries.
+	// This calculates totals from completed daily summaries, completed hours today and raw current-hour checks.
 	totalsQuery := `
 	WITH report_rows AS (
 		SELECT
@@ -466,7 +495,7 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 			max_response_time_ms
 		FROM daily_service_summaries
 		WHERE user_id = ?
-		AND period_start >= ?
+		AND period_end > ?
 		AND period_start < ?
 
 		UNION ALL
@@ -481,8 +510,24 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 			max_response_time_ms
 		FROM hourly_service_summaries
 		WHERE user_id = ?
-		AND period_start >= ?
+		AND period_end > ?
 		AND period_start < ?
+
+		UNION ALL
+
+		SELECT
+			COUNT(*)::bigint AS total_checks,
+			COALESCE(SUM(CASE WHEN health_checks.status IN ('online', 'slow') THEN 1 ELSE 0 END), 0)::bigint AS successful_checks,
+			COALESCE(SUM(CASE WHEN health_checks.status = 'down' THEN 1 ELSE 0 END), 0)::bigint AS failed_checks,
+			COUNT(health_checks.response_time_ms)::bigint AS response_time_sample_count,
+			ROUND(COALESCE(AVG(health_checks.response_time_ms), 0))::integer AS average_response_time_ms,
+			MIN(health_checks.response_time_ms) AS min_response_time_ms,
+			MAX(health_checks.response_time_ms) AS max_response_time_ms
+		FROM health_checks
+		INNER JOIN services ON services.id = health_checks.service_id
+		WHERE services.user_id = ?
+		AND health_checks.checked_at >= ?
+		AND health_checks.checked_at < ?
 	)
 	SELECT
 		COALESCE(SUM(total_checks), 0)::bigint AS total_checks,
@@ -522,7 +567,10 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 		periodStart,
 		currentDayStart,
 		userID,
-		currentDayStart,
+		completedHourSummaryStart,
+		currentHourStart,
+		userID,
+		rawCurrentHourStart,
 		periodEnd,
 	).Scan(&totals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to load overview totals"})
@@ -532,7 +580,7 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 	// This stores per-service report rows.
 	var services []OverviewServiceReport
 
-	// This calculates one report row for each owned service with summary data.
+	// This calculates one report row for each owned service with available monitoring data.
 	servicesQuery := `
 		WITH report_rows AS (
 			SELECT
@@ -546,7 +594,7 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 				max_response_time_ms
 			FROM daily_service_summaries
 			WHERE user_id = ?
-			AND period_start >= ?
+			AND period_end > ?
 			AND period_start < ?
 
 			UNION ALL
@@ -562,8 +610,26 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 				max_response_time_ms
 			FROM hourly_service_summaries
 			WHERE user_id = ?
-			AND period_start >= ?
+			AND period_end > ?
 			AND period_start < ?
+
+			UNION ALL
+
+			SELECT
+				health_checks.service_id,
+				COUNT(*)::bigint AS total_checks,
+				COALESCE(SUM(CASE WHEN health_checks.status IN ('online', 'slow') THEN 1 ELSE 0 END), 0)::bigint AS successful_checks,
+				COALESCE(SUM(CASE WHEN health_checks.status = 'down' THEN 1 ELSE 0 END), 0)::bigint AS failed_checks,
+				COUNT(health_checks.response_time_ms)::bigint AS response_time_sample_count,
+				ROUND(COALESCE(AVG(health_checks.response_time_ms), 0))::integer AS average_response_time_ms,
+				MIN(health_checks.response_time_ms) AS min_response_time_ms,
+				MAX(health_checks.response_time_ms) AS max_response_time_ms
+			FROM health_checks
+			INNER JOIN services ON services.id = health_checks.service_id
+			WHERE services.user_id = ?
+			AND health_checks.checked_at >= ?
+			AND health_checks.checked_at < ?
+			GROUP BY health_checks.service_id
 		)
 		SELECT
 			report_rows.service_id AS service_id,
@@ -613,7 +679,10 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 		periodStart,
 		currentDayStart,
 		userID,
-		currentDayStart,
+		completedHourSummaryStart,
+		currentHourStart,
+		userID,
+		rawCurrentHourStart,
 		periodEnd,
 		userID,
 	).Scan(&services).Error; err != nil {
@@ -626,7 +695,7 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 
 	// This calculates daily trend rows across all owned services.
 	// Previous completed days come from daily summaries.
-	// Today so far is built from completed hourly summaries.
+	// Today so far is built from completed hourly summaries plus raw current-hour checks.
 	dailyQuery := `
 		WITH report_rows AS (
 			SELECT
@@ -641,7 +710,7 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 				max_response_time_ms
 			FROM daily_service_summaries
 			WHERE user_id = ?
-			AND period_start >= ?
+			AND period_end > ?
 			AND period_start < ?
 
 			UNION ALL
@@ -658,8 +727,27 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 				max_response_time_ms
 			FROM hourly_service_summaries
 			WHERE user_id = ?
-			AND period_start >= ?
+			AND period_end > ?
 			AND period_start < ?
+
+			UNION ALL
+
+			SELECT
+				date_trunc('day', health_checks.checked_at) AS period_start,
+				? AS period_end,
+				COUNT(*)::bigint AS total_checks,
+				COALESCE(SUM(CASE WHEN health_checks.status IN ('online', 'slow') THEN 1 ELSE 0 END), 0)::bigint AS successful_checks,
+				COALESCE(SUM(CASE WHEN health_checks.status = 'down' THEN 1 ELSE 0 END), 0)::bigint AS failed_checks,
+				COUNT(health_checks.response_time_ms)::bigint AS response_time_sample_count,
+				ROUND(COALESCE(AVG(health_checks.response_time_ms), 0))::integer AS average_response_time_ms,
+				MIN(health_checks.response_time_ms) AS min_response_time_ms,
+				MAX(health_checks.response_time_ms) AS max_response_time_ms
+			FROM health_checks
+			INNER JOIN services ON services.id = health_checks.service_id
+			WHERE services.user_id = ?
+			AND health_checks.checked_at >= ?
+			AND health_checks.checked_at < ?
+			GROUP BY date_trunc('day', health_checks.checked_at)
 		)
 		SELECT
 			period_start AS period_start,
@@ -704,7 +792,11 @@ func (h *ReportHandler) GetOverviewReport(c *gin.Context) {
 		currentDayStart,
 		periodEnd,
 		userID,
-		currentDayStart,
+		completedHourSummaryStart,
+		currentHourStart,
+		periodEnd,
+		userID,
+		rawCurrentHourStart,
 		periodEnd,
 	).Scan(&daily).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to load daily report trend"})

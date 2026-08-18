@@ -27,9 +27,10 @@ import {
   formatMilliseconds,
   formatPercentage,
 } from "../utils/formatters";
+import { serviceEditPath, servicePath, serviceSlug } from "../utils/serviceRoutes";
 
 export function ServiceDetailPage() {
-  const { id } = useParams();
+  const { id, slug } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const [service, setService] = useState<Service | null>(null);
@@ -159,9 +160,20 @@ export function ServiceDetailPage() {
   }, [loadService]);
 
   useEffect(() => {
+    if (!service) return;
+
+    const canonicalPath = servicePath(service.id, service.name);
+    // Keep readable service URLs canonical after legacy or stale-slug visits.
+    if (!slug || slug !== serviceSlug(service.name)) {
+      navigate(canonicalPath, { replace: true, state: location.state });
+    }
+  }, [location.state, navigate, service, slug]);
+
+  useEffect(() => {
     if (!routeFeedback?.created && !routeFeedback?.updated) return;
+    if (!service || !slug || slug !== serviceSlug(service.name)) return;
     navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, navigate, routeFeedback?.created, routeFeedback?.updated]);
+  }, [location.pathname, navigate, routeFeedback?.created, routeFeedback?.updated, service, slug]);
 
   useEffect(() => {
     deletingRef.current = deleting;
@@ -337,7 +349,7 @@ export function ServiceDetailPage() {
             <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
-          <Link to={`/services/${id}/edit`} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm font-semibold text-slate-200 backdrop-blur-sm transition hover:bg-white/10">
+          <Link to={serviceEditPath(service.id, service.name)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm font-semibold text-slate-200 backdrop-blur-sm transition hover:bg-white/10">
             <EditIcon className="h-4 w-4" />
             Edit
           </Link>
