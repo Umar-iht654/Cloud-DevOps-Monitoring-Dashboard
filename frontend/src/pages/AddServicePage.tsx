@@ -5,13 +5,14 @@ import { createService } from "../api/services";
 import { ServiceForm } from "../components/services/ServiceForm";
 import { ArrowLeftIcon } from "../components/ui/Icons";
 import type { ServiceInput } from "../types/api";
+import { servicePath } from "../utils/serviceRoutes";
 
 export function AddServicePage() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const submitInFlightRef = useRef(false);
-  const createdServiceIdRef = useRef<number | null>(null);
+  const createdServiceRef = useRef<{ id: number; name: string } | null>(null);
 
   const handleSubmit = async (values: ServiceInput) => {
     if (submitInFlightRef.current) return false;
@@ -21,7 +22,10 @@ export function AddServicePage() {
 
     try {
       const { data } = await createService(values);
-      createdServiceIdRef.current = data.service.id;
+      createdServiceRef.current = {
+        id: data.service.id,
+        name: data.service.name,
+      };
       return true;
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create the service."));
@@ -64,8 +68,8 @@ export function AddServicePage() {
         error={error}
         onSubmit={handleSubmit}
         onSubmitSuccess={() => {
-          if (createdServiceIdRef.current === null) return;
-          navigate(`/services/${createdServiceIdRef.current}`, {
+          if (createdServiceRef.current === null) return;
+          navigate(servicePath(createdServiceRef.current.id, createdServiceRef.current.name), {
             replace: true,
             state: { created: true },
           });

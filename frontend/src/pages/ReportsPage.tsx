@@ -18,6 +18,7 @@ import {
 } from "../components/ui/Icons";
 import type { OverviewReport, OverviewServiceReport, ReportRange } from "../types/api";
 import { formatDateTime, formatMilliseconds, formatPercentage } from "../utils/formatters";
+import { servicePath } from "../utils/serviceRoutes";
 
 const reportRanges: Array<{ value: Extract<ReportRange, "7d" | "30d">; label: string }> = [
   { value: "7d", label: "7 days" },
@@ -31,12 +32,14 @@ const reportDateFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
   year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
 });
 
 function formatReportPeriod(report: OverviewReport) {
   const start = reportDateFormatter.format(new Date(report.period_start));
   const end = reportDateFormatter.format(new Date(report.period_end));
-  return `${start} – ${end}`;
+  return `${start} - ${end}`;
 }
 
 function ReliabilityHighlight({
@@ -56,7 +59,7 @@ function ReliabilityHighlight({
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-500">{label}</p>
           <Link
-            to={`/services/${service.service_id}`}
+            to={servicePath(service.service_id, service.service_name)}
             className="mt-2 block break-words text-lg font-semibold tracking-[-0.025em] text-slate-950 underline decoration-cyan-300/70 decoration-2 underline-offset-4 transition hover:text-cyan-700"
           >
             {service.service_name}
@@ -189,7 +192,7 @@ export function ReportsPage() {
               Monitoring reports
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400 sm:text-base">
-              Long-term availability, latency, and failure trends built from your completed monitoring summaries.
+              Availability, latency, and failure trends built from your available monitoring data.
             </p>
             {report && (
               <p className="mt-4 text-xs font-medium text-slate-400">
@@ -229,7 +232,7 @@ export function ReportsPage() {
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm font-semibold text-slate-200 backdrop-blur-sm transition hover:bg-white/10 disabled:opacity-60"
             >
               <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "Refreshing…" : "Refresh"}
+              {refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -270,9 +273,9 @@ export function ReportsPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
                 <ActivityIcon className="h-7 w-7" />
               </div>
-              <h2 className="mt-5 text-xl font-semibold tracking-[-0.025em] text-slate-950">Reports are still warming up</h2>
+              <h2 className="mt-5 text-xl font-semibold tracking-[-0.025em] text-slate-950">No monitoring data yet</h2>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">
-                Reports are created from completed hourly and daily monitoring summaries. Keep a service monitored for a little longer, then return here to see reliability trends.
+                Reports will appear after your service completes its first health check.
               </p>
               <Link
                 to="/services/new"
@@ -288,7 +291,7 @@ export function ReportsPage() {
                 <SummaryCard
                   label="Overall uptime"
                   value={formatPercentage(report.uptime_percentage)}
-                  helper={`${report.successful_checks.toLocaleString()} successful checks in ${rangeLabel(report.range).toLowerCase()}`}
+                  helper={`${report.successful_checks.toLocaleString()} successful checks in the ${rangeLabel(report.range).toLowerCase()} lookback`}
                   icon={CheckIcon}
                   tone="emerald"
                   featured
@@ -297,7 +300,7 @@ export function ReportsPage() {
                 <SummaryCard
                   label="Total checks"
                   value={report.total_checks.toLocaleString()}
-                  helper={`${report.services.length.toLocaleString()} ${report.services.length === 1 ? "service" : "services"} with summary data`}
+                  helper={`${report.services.length.toLocaleString()} ${report.services.length === 1 ? "service" : "services"} with monitoring data`}
                   icon={ActivityIcon}
                   tone="cyan"
                   delay={50}
@@ -342,7 +345,7 @@ export function ReportsPage() {
 
               <section className="mt-8" aria-labelledby="trend-heading">
                 <div className="mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Daily summary data</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Daily monitoring data</p>
                   <h2 id="trend-heading" className="mt-1 text-xl font-semibold tracking-[-0.025em] text-slate-950">Reliability trends</h2>
                   <p className="mt-1 text-sm text-slate-500">Daily values are aggregated across the services in your workspace.</p>
                 </div>

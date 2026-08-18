@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { OverviewServiceReport } from "../../types/api";
 import { formatMilliseconds, formatPercentage } from "../../utils/formatters";
+import { servicePath } from "../../utils/serviceRoutes";
 
 interface ServiceReliabilityTableProps {
   services: OverviewServiceReport[];
@@ -25,7 +26,7 @@ export function ServiceReliabilityTable({ services }: ServiceReliabilityTablePro
           <article key={service.service_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <Link
-                to={`/services/${service.service_id}`}
+                to={servicePath(service.service_id, service.service_name)}
                 className="min-w-0 break-words font-semibold text-slate-950 underline decoration-cyan-300/70 decoration-2 underline-offset-4 transition hover:text-cyan-700"
               >
                 {service.service_name}
@@ -76,7 +77,7 @@ export function ServiceReliabilityTable({ services }: ServiceReliabilityTablePro
               <tr key={service.service_id} className="transition hover:bg-slate-50/80">
                 <th scope="row" className="max-w-[22rem] px-4 py-4 text-left font-medium">
                   <Link
-                    to={`/services/${service.service_id}`}
+                    to={servicePath(service.service_id, service.service_name)}
                     className="break-words text-slate-900 underline decoration-cyan-300/70 decoration-2 underline-offset-4 transition hover:text-cyan-700"
                   >
                     {service.service_name}

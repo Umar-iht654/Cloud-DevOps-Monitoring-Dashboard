@@ -8,6 +8,16 @@ import { FormField } from "../components/ui/FormField";
 
 type VerificationStatus = "awaiting" | "verifying" | "verified" | "failed";
 
+const RESEND_COOLDOWN_SECONDS = 120;
+
+function formatCooldown(seconds: number) {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+
+  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+}
+
 interface VerificationNavigationState {
   email?: string;
   registrationStarted?: boolean;
@@ -24,8 +34,11 @@ export function VerifyEmailPage() {
   const [email, setEmail] = useState(navigationState?.email ?? "");
   const [emailError, setEmailError] = useState("");
   const [resendError, setResendError] = useState("");
-  const [resendMessage, setResendMessage] = useState("");
   const [resending, setResending] = useState(false);
+  const [cooldownDeadline, setCooldownDeadline] = useState<number | null>(
+    !token && navigationState?.registrationStarted ? Date.now() + RESEND_COOLDOWN_SECONDS * 1000 : null,
+  );
+  const [, setCooldownTick] = useState(0);
   const errorRef = useRef<HTMLDivElement>(null);
   const resendFormRef = useRef<HTMLFormElement>(null);
 
@@ -34,6 +47,28 @@ export function VerifyEmailPage() {
       errorRef.current?.focus();
     }
   }, [resendError, status]);
+
+  const cooldownRemaining = cooldownDeadline
+    ? Math.max(0, Math.ceil((cooldownDeadline - Date.now()) / 1000))
+    : 0;
+
+  useEffect(() => {
+    if (!cooldownDeadline) return undefined;
+
+    // Recalculate against wall-clock time so backgrounded tabs do not extend the visible cooldown.
+    const refreshCooldown = () => {
+      if (cooldownDeadline <= Date.now()) {
+        setCooldownDeadline(null);
+        return;
+      }
+      setCooldownTick((currentTick) => currentTick + 1);
+    };
+
+    refreshCooldown();
+    const timerId = window.setInterval(refreshCooldown, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [cooldownDeadline]);
 
   useEffect(() => {
     if (!token) {
@@ -62,7 +97,7 @@ export function VerifyEmailPage() {
 
   const handleResend = async (event: FormEvent) => {
     event.preventDefault();
-    if (resending) return;
+    if (resending || cooldownRemaining > 0) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
@@ -82,11 +117,11 @@ export function VerifyEmailPage() {
     setResending(true);
     setEmailError("");
     setResendError("");
-    setResendMessage("");
 
     try {
-      const { data } = await resendVerificationEmail(normalizedEmail);
-      setResendMessage(data.message);
+      await resendVerificationEmail(normalizedEmail);
+      setEmail(normalizedEmail);
+      setCooldownDeadline(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
     } catch (requestError) {
       setResendError(getApiErrorMessage(requestError, "Unable to request another verification email."));
     } finally {
@@ -96,6 +131,13 @@ export function VerifyEmailPage() {
 
   const showResendForm = status === "awaiting" || status === "failed";
   const isRegistrationStart = status === "awaiting" && navigationState?.registrationStarted;
+  const isCooldownActive = cooldownRemaining > 0;
+  const resendButtonDisabled = resending || isCooldownActive;
+  const resendButtonLabel = resending
+    ? "Requesting link..."
+    : isCooldownActive
+      ? `Resend available in ${formatCooldown(cooldownRemaining)}`
+      : "Send another verification link";
 
   return (
     <AuthLayout>
@@ -174,16 +216,6 @@ export function VerifyEmailPage() {
             </div>
           )}
 
-          {resendMessage && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="notice-enter mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
-            >
-              {resendMessage}
-            </div>
-          )}
-
           <form ref={resendFormRef} onSubmit={handleResend} noValidate aria-busy={resending} className="space-y-4">
             <FormField
               id="verification-email"
@@ -200,17 +232,22 @@ export function VerifyEmailPage() {
                 setEmail(event.target.value);
                 setEmailError("");
                 setResendError("");
-                setResendMessage("");
               }}
             />
             <button
               type="submit"
-              disabled={resending}
+              disabled={resendButtonDisabled}
               className="primary-action flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#07111f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {resending ? "Requesting link…" : "Send another verification link"}
-              {!resending && <ArrowRightIcon className="h-4 w-4" />}
+              {resendButtonLabel}
+              {!resending && !isCooldownActive && <ArrowRightIcon className="h-4 w-4" />}
             </button>
+            {isCooldownActive && (
+              <p role="status" aria-live="polite" className="text-sm leading-6 text-slate-500">
+                If the address is eligible for another verification email, it will be sent.
+                You can request again when the timer ends.
+              </p>
+            )}
           </form>
 
           <p className="mt-7 text-center text-sm text-slate-500">
