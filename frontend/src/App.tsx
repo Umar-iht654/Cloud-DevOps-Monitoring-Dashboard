@@ -56,7 +56,7 @@ function RouteMetadata() {
                   ? "Service details"
                   : "Page not found";
 
-    document.title = `${pageTitle} | Cloud Monitor`;
+    document.title = `${pageTitle} | StatusWatch`;
   }, [pathname]);
 
   return null;

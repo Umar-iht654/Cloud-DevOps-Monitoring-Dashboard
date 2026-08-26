@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import axios from "axios";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getApiErrorMessage } from "../api/client";
 import { resendVerificationEmail, verifyEmail } from "../api/auth";
@@ -34,6 +35,7 @@ export function VerifyEmailPage() {
   const [email, setEmail] = useState(navigationState?.email ?? "");
   const [emailError, setEmailError] = useState("");
   const [resendError, setResendError] = useState("");
+  const [alreadyVerified, setAlreadyVerified] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldownDeadline, setCooldownDeadline] = useState<number | null>(
     !token && navigationState?.registrationStarted ? Date.now() + RESEND_COOLDOWN_SECONDS * 1000 : null,
@@ -97,7 +99,7 @@ export function VerifyEmailPage() {
 
   const handleResend = async (event: FormEvent) => {
     event.preventDefault();
-    if (resending || cooldownRemaining > 0) return;
+    if (resending || cooldownRemaining > 0 || alreadyVerified) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
@@ -117,12 +119,25 @@ export function VerifyEmailPage() {
     setResending(true);
     setEmailError("");
     setResendError("");
+    setAlreadyVerified(false);
 
     try {
       await resendVerificationEmail(normalizedEmail);
       setEmail(normalizedEmail);
       setCooldownDeadline(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
     } catch (requestError) {
+      const responseCode = axios.isAxiosError(requestError)
+        ? (requestError.response?.data as { code?: string } | undefined)?.code
+        : undefined;
+
+      if (responseCode === "EMAIL_ALREADY_VERIFIED") {
+        setEmail(normalizedEmail);
+        setAlreadyVerified(true);
+        setCooldownDeadline(null);
+        setResendError("");
+        return;
+      }
+
       setResendError(getApiErrorMessage(requestError, "Unable to request another verification email."));
     } finally {
       setResending(false);
@@ -132,7 +147,7 @@ export function VerifyEmailPage() {
   const showResendForm = status === "awaiting" || status === "failed";
   const isRegistrationStart = status === "awaiting" && navigationState?.registrationStarted;
   const isCooldownActive = cooldownRemaining > 0;
-  const resendButtonDisabled = resending || isCooldownActive;
+  const resendButtonDisabled = resending || isCooldownActive || alreadyVerified;
   const resendButtonLabel = resending
     ? "Requesting link..."
     : isCooldownActive
@@ -216,6 +231,22 @@ export function VerifyEmailPage() {
             </div>
           )}
 
+          {alreadyVerified && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="notice-enter mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
+            >
+              This email has already been verified.{" "}
+              <Link
+                to="/login"
+                className="rounded font-semibold text-emerald-900 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+              >
+                Sign in
+              </Link>
+            </div>
+          )}
+
           <form ref={resendFormRef} onSubmit={handleResend} noValidate aria-busy={resending} className="space-y-4">
             <FormField
               id="verification-email"
@@ -232,17 +263,20 @@ export function VerifyEmailPage() {
                 setEmail(event.target.value);
                 setEmailError("");
                 setResendError("");
+                setAlreadyVerified(false);
               }}
             />
-            <button
-              type="submit"
-              disabled={resendButtonDisabled}
-              className="primary-action flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#07111f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {resendButtonLabel}
-              {!resending && !isCooldownActive && <ArrowRightIcon className="h-4 w-4" />}
-            </button>
-            {isCooldownActive && (
+            {!alreadyVerified && (
+              <button
+                type="submit"
+                disabled={resendButtonDisabled}
+                className="primary-action flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#07111f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {resendButtonLabel}
+                {!resending && !isCooldownActive && <ArrowRightIcon className="h-4 w-4" />}
+              </button>
+            )}
+            {!alreadyVerified && isCooldownActive && (
               <p role="status" aria-live="polite" className="text-sm leading-6 text-slate-500">
                 If the address is eligible for another verification email, it will be sent.
                 You can request again when the timer ends.

@@ -1,12 +1,41 @@
-import type { ReactNode } from "react";
-import heroArtwork from "../../assets/hero.png";
+import type { CSSProperties, ReactNode } from "react";
 import { LightRays } from "../effects/LightRays";
-import { ActivityIcon, CheckIcon, PulseIcon } from "../ui/Icons";
+import { ActivityIcon, CheckIcon, ClockIcon, GlobeIcon, PulseIcon } from "../ui/Icons";
 
-const benefits = [
-  "Track every endpoint from one dashboard",
-  "Spot outages and degraded performance",
-  "Turn health checks into useful history",
+const monitoringFeatures = [
+  "Uptime monitoring",
+  "Response-time tracking",
+  "Downtime alerts",
+];
+
+const monitoredServices = [
+  {
+    name: "API Gateway",
+    uptime: "99.99%",
+    averageLatency: "76 ms",
+    checks: "38",
+    lastChecked: "12 sec ago",
+    ring: 99.99,
+    statusLabel: "Operational",
+  },
+  {
+    name: "Auth Service",
+    uptime: "99.98%",
+    averageLatency: "84 ms",
+    checks: "27",
+    lastChecked: "24 sec ago",
+    ring: 99.98,
+    statusLabel: "Operational",
+  },
+  {
+    name: "Payments API",
+    uptime: "99.96%",
+    averageLatency: "112 ms",
+    checks: "44",
+    lastChecked: "31 sec ago",
+    ring: 99.96,
+    statusLabel: "Operational",
+  },
 ];
 
 export function AuthLayout({ children }: { children: ReactNode }) {
@@ -21,63 +50,125 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           length={2.4}
           mouseInfluence={0.07}
         />
-        <div className="auth-orb absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-cyan-400/10 blur-[100px]" />
-        <div className="auth-orb auth-orb-delayed absolute -right-40 bottom-0 h-[28rem] w-[28rem] rounded-full bg-violet-600/12 blur-[120px]" />
         <div className="relative flex items-center gap-3">
           <div className="brand-pulse flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400 text-[#07111f] shadow-lg shadow-cyan-400/20">
             <PulseIcon className="h-6 w-6" />
           </div>
           <div>
-            <p className="font-semibold tracking-tight text-white">Cloud Monitor</p>
-            <p className="text-xs text-slate-500">Operations console</p>
+            <p className="font-semibold text-white">StatusWatch</p>
+            <p className="text-xs text-slate-500">Service monitoring console</p>
           </div>
         </div>
 
-        <div className="auth-copy relative z-10 my-auto max-w-2xl py-16">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/8 px-3 py-1.5 text-xs font-semibold text-cyan-300">
+        <div className="auth-copy relative z-10 my-auto max-w-[44rem] py-16">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-200 shadow-[0_0_24px_rgb(34_211_238_/_0.08)]">
             <span className="live-dot h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Reliability at a glance
+            REAL-TIME SERVICE MONITORING
           </div>
-          <p className="max-w-xl text-5xl font-semibold leading-[1.05] tracking-[-0.045em] text-white xl:text-6xl">
-            Know what is working before your users tell you.
+          <p className="max-w-[42rem] text-[clamp(2.15rem,3.25vw,3.35rem)] font-semibold leading-[1.04] text-white">
+            <span className="block whitespace-nowrap">Know when something breaks</span>
+            <span className="block whitespace-nowrap">before your users do.</span>
           </p>
           <p className="mt-6 max-w-lg text-lg leading-8 text-slate-400">
-            Monitor websites and APIs, understand response times, and catch failures from one focused workspace.
+            Monitor uptime, latency and failures across your services from one clear workspace.
           </p>
 
-          <div className="mt-9 space-y-3.5">
-            {benefits.map((benefit) => (
-              <div key={benefit} className="flex items-center gap-3 text-sm text-slate-300">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/20">
+          <div className="mt-9 grid gap-3 sm:grid-cols-3">
+            {monitoringFeatures.map((feature) => (
+              <div
+                key={feature}
+                className="flex min-h-16 items-center gap-3 rounded-2xl border border-cyan-200/10 bg-[#07182a]/70 px-4 py-3 text-sm font-medium text-slate-100 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.05),0_12px_26px_rgb(0_0_0_/_0.16)]"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/25">
                   <CheckIcon className="h-3.5 w-3.5" />
                 </span>
-                {benefit}
+                <span>{feature}</span>
               </div>
             ))}
           </div>
 
-          <div className="auth-showcase relative mt-10 h-44 max-w-xl xl:h-52" aria-hidden="true">
-            <img
-              src={heroArtwork}
-              alt=""
-              className="auth-art absolute -bottom-16 right-0 w-72 select-none object-contain xl:w-80"
-            />
-            <div className="telemetry-chip absolute bottom-4 left-0 rounded-2xl px-4 py-3 text-white">
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <ActivityIcon className="h-3.5 w-3.5 text-cyan-300" />
-                Product preview
+          <div className="auth-showcase status-visual mt-10 w-full max-w-[44rem] rounded-[1.75rem] p-5 text-white" aria-hidden="true">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/85">
+                  <ActivityIcon className="h-3.5 w-3.5 text-cyan-300" />
+                  Live checks
+                </div>
+                <p className="mt-2 text-xl font-semibold">Production services</p>
               </div>
-              <p className="mt-1 text-sm font-semibold">One view. Every endpoint.</p>
+              <div className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+                All systems operational
+              </div>
             </div>
-            <div className="telemetry-chip absolute right-4 top-0 rounded-2xl px-4 py-3 text-white xl:right-10">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Live telemetry</p>
-              <p className="mt-1 text-sm font-semibold">Availability &amp; latency</p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {monitoredServices.map((service, index) => (
+                <article
+                  key={service.name}
+                  className="auth-service-card service-monitor-row rounded-2xl border border-cyan-300/12 bg-[#030b17]/88 p-3.5 shadow-[inset_0_1px_0_rgb(125_211_252_/_0.045),0_12px_24px_rgb(0_0_0_/_0.2)] sm:[&:nth-child(3)]:col-span-2 sm:[&:nth-child(3)]:mx-auto sm:[&:nth-child(3)]:w-[calc(50%-0.375rem)]"
+                  style={{
+                    animationDelay: `${index * 90}ms`,
+                    "--auth-service-ring": `${service.ring * 3.6}deg`,
+                  } as CSSProperties}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-200/8 text-cyan-100 ring-1 ring-inset ring-cyan-100/12">
+                        <GlobeIcon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-50">{service.name}</p>
+                        <p className="mt-1 text-xs font-medium text-cyan-100/80">{service.statusLabel}</p>
+                      </div>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100">
+                      <span className="live-dot h-1.5 w-1.5 rounded-full bg-cyan-300" />
+                      Online
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3 border-y border-cyan-300/10 py-3">
+                    <div className="auth-uptime-ring relative h-16 w-16 shrink-0 rounded-full p-[5px]">
+                      <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-[#030b17] shadow-[inset_0_0_18px_rgb(0_0_0_/_0.48)]">
+                        <p className="metric-tabular text-xs font-bold tracking-tight text-white">{service.uptime}</p>
+                        <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-cyan-200/60">Uptime</p>
+                      </div>
+                    </div>
+                    <div className="grid min-w-0 grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Average</p>
+                        <p className="metric-tabular mt-1 text-sm font-semibold text-cyan-50">
+                          {service.averageLatency}
+                        </p>
+                        <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-200/50">
+                          latency
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Checks</p>
+                        <p className="metric-tabular mt-1 text-sm font-semibold text-cyan-50">{service.checks}</p>
+                        <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-200/50">
+                          active
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <ClockIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{service.lastChecked}</span>
+                    </span>
+                    <span className="font-semibold text-teal-200/75">Healthy</span>
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </div>
 
         <p className="relative text-xs text-slate-600">
-          Built for clear, practical service monitoring.
+          Built for focused reliability teams.
         </p>
       </section>
 
@@ -89,7 +180,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <div className="brand-pulse flex h-9 w-9 items-center justify-center rounded-xl bg-[#07111f] text-cyan-300">
             <PulseIcon className="h-5 w-5" />
           </div>
-          <span className="font-semibold text-slate-900">Cloud Monitor</span>
+          <span className="font-semibold text-slate-900">StatusWatch</span>
         </div>
         <div className="auth-form-panel w-full max-w-md rounded-3xl p-5 sm:p-9">{children}</div>
       </main>

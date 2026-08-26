@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/email"
 	"github.com/Umar-iht654/Cloud-DevOps-Monitoring-Dashboard/backend/internal/models"
@@ -54,6 +55,24 @@ type ResendVerificationRequest struct {
 	Email string `json:"email"`
 }
 
+// validatePassword checks that a registration password meets the minimum security requirements.
+func validatePassword(password string) bool {
+	hasUppercase := false
+	hasNumber := false
+
+	for _, character := range password {
+		if unicode.IsUpper(character) {
+			hasUppercase = true
+		}
+
+		if unicode.IsDigit(character) {
+			hasNumber = true
+		}
+	}
+
+	return len(password) >= 7 && hasUppercase && hasNumber
+}
+
 // NewAuthHandler creates a new AuthHandler with database access and a JWT secret.
 func NewAuthHandler(db *gorm.DB, jwtSecret string, emailSender *email.Sender) *AuthHandler {
 	// This returns a pointer to an AuthHandler so routes can use its methods.
@@ -94,10 +113,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// This checks that the password has a minimum length.
-	if len(req.Password) < 7 {
+	if !validatePassword(req.Password) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Password must be at least 7 characters long",
+			"message": "Password must be at least 7 characters long and contain at least one uppercase letter and one number",
 		})
 		return
 	}
@@ -322,11 +340,35 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 	// This generic message avoids revealing whether an email exists or is pending.
 	genericMessage := "If the account exists and is awaiting verification, a verification email will be sent if allowed."
 
+	// This stores any real user found with the submitted email.
+	var existingUser models.User
+
+	// This checks verified users before looking for pending registrations.
+	if err := h.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"code":    "EMAIL_ALREADY_VERIFIED",
+			"message": "This email has already been verified. Please sign in.",
+		})
+		return
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Unable to process verification request",
+		})
+		return
+	}
+
 	// This stores the pending registration found by email.
 	var pendingRegistration models.PendingRegistration
 
 	// This searches for a pending registration by email.
 	if err := h.DB.Where("email = ?", req.Email).First(&pendingRegistration).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Unable to process verification request",
+			})
+			return
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"message": genericMessage,
 		})
