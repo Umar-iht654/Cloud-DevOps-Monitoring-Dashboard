@@ -87,7 +87,30 @@ export interface LoginResponse extends ApiMessage {
   user: User;
 }
 
-export interface RegisterResponse extends ApiMessage {}
+export interface RegisterResponse extends ApiMessage {
+  verificationSessionToken: string;
+  verificationSessionExpiresAt: string;
+  verificationSessionExpiresInSeconds: number;
+}
+
+export interface ResendVerificationResponse extends ApiMessage {
+  code?: string;
+  retryAfterSeconds?: number;
+  expiresAt?: string;
+  verificationSessionToken?: string;
+  verificationSessionExpiresAt?: string;
+  verificationSessionExpiresInSeconds?: number;
+}
+
+export type VerificationSessionStatus = "pending" | "verified" | "expired" | "consumed";
+
+export interface VerificationSessionStatusResponse extends Partial<ApiMessage> {
+  status: VerificationSessionStatus;
+  code?: string;
+  expiresAt?: string;
+  token?: string;
+  user?: User;
+}
 
 export interface CurrentUserResponse {
   user: User;

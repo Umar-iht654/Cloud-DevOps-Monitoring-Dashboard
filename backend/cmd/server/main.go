@@ -175,6 +175,9 @@ func main() {
 	// This registers the public route for resending verification emails with abuse prevention.
 	auth.POST("/resend-verification", authHandler.ResendVerificationEmail)
 
+	// This registers the public route for polling and exchanging temporary verification sessions.
+	auth.POST("/verification-session/status", authHandler.CheckVerificationSessionStatus)
+
 	// This registers the public user registration route.
 	auth.POST("/register", authHandler.Register)
 

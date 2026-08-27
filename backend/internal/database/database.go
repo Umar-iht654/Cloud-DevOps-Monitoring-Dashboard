@@ -33,6 +33,9 @@ func Migrate(db *gorm.DB) {
 		// This creates or updates the pending registrations table.
 		&models.PendingRegistration{},
 
+		// This creates or updates the temporary verification sessions table.
+		&models.VerificationSession{},
+
 		// This creates or updates the services table.
 		&models.Service{},
 

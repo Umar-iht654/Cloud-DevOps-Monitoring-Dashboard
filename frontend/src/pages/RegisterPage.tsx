@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import {
+  VERIFICATION_SESSION_EXPIRES_AT_STORAGE_KEY,
+  VERIFICATION_SESSION_TOKEN_STORAGE_KEY,
+} from "../api/auth";
 import { getApiErrorMessage } from "../api/client";
 import { AuthLayout } from "../components/layout/AuthLayout";
 import { ArrowRightIcon, CheckIcon, CloseIcon } from "../components/ui/Icons";
@@ -94,7 +98,12 @@ export function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await register(normalizedName, normalizedEmail, password);
+      const registration = await register(normalizedName, normalizedEmail, password);
+      sessionStorage.setItem(VERIFICATION_SESSION_TOKEN_STORAGE_KEY, registration.verificationSessionToken);
+      sessionStorage.setItem(
+        VERIFICATION_SESSION_EXPIRES_AT_STORAGE_KEY,
+        registration.verificationSessionExpiresAt,
+      );
       navigate("/verify-email", {
         replace: true,
         state: { email: normalizedEmail, registrationStarted: true },

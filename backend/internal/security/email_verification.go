@@ -28,6 +28,11 @@ func GenerateEmailVerificationToken() (string, string, error) {
 	return rawToken, tokenHash, nil
 }
 
+// GenerateVerificationSessionToken creates a secure random token for browser verification sessions.
+func GenerateVerificationSessionToken() (string, string, error) {
+	return GenerateEmailVerificationToken()
+}
+
 // HashEmailVerificationToken hashes a raw verification token for database lookup.
 func HashEmailVerificationToken(rawToken string) string {
 	// This calculates a SHA-256 hash of the raw token.
@@ -35,4 +40,9 @@ func HashEmailVerificationToken(rawToken string) string {
 
 	// This converts the hash bytes into a stable hex string.
 	return hex.EncodeToString(hash[:])
+}
+
+// HashVerificationSessionToken hashes a raw temporary session token for database lookup.
+func HashVerificationSessionToken(rawToken string) string {
+	return HashEmailVerificationToken(rawToken)
 }

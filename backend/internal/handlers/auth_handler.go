@@ -55,6 +55,15 @@ type ResendVerificationRequest struct {
 	Email string `json:"email"`
 }
 
+// VerificationSessionStatusRequest defines the JSON body for polling a browser verification session.
+type VerificationSessionStatusRequest struct {
+	// Token stores the raw temporary verification session token held by the registering browser.
+	Token string `json:"token"`
+}
+
+const verificationLifetime = 3 * time.Minute
+const resendVerificationCooldown = 3 * time.Minute
+
 // validatePassword checks that a registration password meets the minimum security requirements.
 func validatePassword(password string) bool {
 	hasUppercase := false
@@ -80,6 +89,32 @@ func NewAuthHandler(db *gorm.DB, jwtSecret string, emailSender *email.Sender) *A
 		DB:          db,
 		JWTSecret:   jwtSecret,
 		EmailSender: emailSender,
+	}
+}
+
+// createLoginToken signs the same JWT shape used by normal login.
+func (h *AuthHandler) createLoginToken(user models.User) (string, error) {
+	// This creates a new JWT token with user information and an expiry time.
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.ID,
+		"email":   user.Email,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+	})
+
+	// This signs the JWT token using the secret from the environment variables.
+	return token.SignedString([]byte(h.JWTSecret))
+}
+
+// loginResponse builds the same successful authentication response shape used by normal login.
+func loginResponse(message string, signedToken string, user models.User) gin.H {
+	return gin.H{
+		"message": message,
+		"token":   signedToken,
+		"user": gin.H{
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
+		},
 	}
 }
 
@@ -189,8 +224,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// This stores the current time so all verification timestamps are consistent.
 	now := time.Now()
 
-	// This stores when the verification token should expire.
-	verificationExpiresAt := now.Add(1 * time.Hour)
+	// This stores when the verification token and browser session should expire.
+	verificationExpiresAt := now.Add(verificationLifetime)
+
+	// This creates a secure temporary token for the registering browser.
+	verificationSessionToken, verificationSessionTokenHash, err := security.GenerateVerificationSessionToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to create verification session",
+		})
+		return
+	}
 
 	// This creates a pending registration instead of a real user.
 	pendingRegistration := models.PendingRegistration{
@@ -204,8 +248,24 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		VerificationWindowStart: now,
 	}
 
-	// This inserts the pending registration into the database.
-	if err := h.DB.Create(&pendingRegistration).Error; err != nil {
+	// This creates the short-lived verification session for the initiating browser.
+	verificationSession := models.VerificationSession{
+		CreatedAt: now,
+		Email:     req.Email,
+		TokenHash: verificationSessionTokenHash,
+		Status:    models.VerificationSessionStatusPending,
+		UpdatedAt: now,
+		ExpiresAt: verificationExpiresAt,
+	}
+
+	// This inserts the pending registration and browser verification session together.
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&pendingRegistration).Error; err != nil {
+			return err
+		}
+
+		return tx.Create(&verificationSession).Error
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Failed to create pending registration",
 		})
@@ -222,7 +282,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// This returns a 201 response showing that verification is required before the account is created.
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Registration started. Please verify your email to create your account.",
+		"message":                             "Registration started. Please verify your email to create your account.",
+		"verificationSessionToken":            verificationSessionToken,
+		"verificationSessionExpiresAt":        verificationExpiresAt,
+		"verificationSessionExpiresInSeconds": int(verificationLifetime.Seconds()),
 	})
 }
 
@@ -253,10 +316,14 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// This checks whether the token has expired.
-	if time.Now().After(pendingRegistration.VerificationExpiresAt) {
+	// This stores the verification completion time for expiry checks and transaction updates.
+	now := time.Now()
+
+	// This checks whether the email verification link has expired.
+	if now.After(pendingRegistration.VerificationExpiresAt) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Invalid or expired verification token",
+			"code":    "VERIFICATION_LINK_EXPIRED",
+			"message": "This verification link has expired. Please request a new verification email.",
 		})
 		return
 	}
@@ -280,6 +347,19 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 
 		// This inserts the real user into the users table.
 		if err := tx.Create(&user).Error; err != nil {
+			return err
+		}
+
+		// This marks only active browser verification sessions as ready for auto-login.
+		if err := tx.Model(&models.VerificationSession{}).
+			Where("email = ?", pendingRegistration.Email).
+			Where("status = ?", models.VerificationSessionStatusPending).
+			Where("expires_at > ?", now).
+			Where("consumed_at IS NULL").
+			Updates(map[string]interface{}{
+				"status":  models.VerificationSessionStatusVerified,
+				"user_id": user.ID,
+			}).Error; err != nil {
 			return err
 		}
 
@@ -309,8 +389,154 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 
 	// This returns a success response.
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Email verified successfully. You can now log in.",
+		"message": "Email verified. You can return to the device where you registered.",
 	})
+}
+
+// CheckVerificationSessionStatus polls and exchanges a verified browser session for normal login.
+func (h *AuthHandler) CheckVerificationSessionStatus(c *gin.Context) {
+	// This creates a variable to store the incoming JSON request body.
+	var req VerificationSessionStatusRequest
+
+	// This tries to convert the incoming JSON body into the request struct.
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid request body",
+		})
+		return
+	}
+
+	// This removes extra spaces before hashing the raw temporary token.
+	req.Token = strings.TrimSpace(req.Token)
+
+	// This checks that a token was provided.
+	if req.Token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Verification session token is required",
+		})
+		return
+	}
+
+	// This hashes the submitted token so the raw token is never used for lookup.
+	tokenHash := security.HashVerificationSessionToken(req.Token)
+
+	// This stores the temporary verification session found by token hash.
+	var verificationSession models.VerificationSession
+
+	// This looks up the temporary session by hashed token only.
+	if err := h.DB.Where("token_hash = ?", tokenHash).First(&verificationSession).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"message": "Invalid verification session",
+		})
+		return
+	}
+
+	// This stores the polling time for all expiry decisions.
+	now := time.Now()
+
+	// This lazily expires sessions that are past their stored expiry.
+	if verificationSession.Status == models.VerificationSessionStatusExpired || now.After(verificationSession.ExpiresAt) {
+		if verificationSession.Status != models.VerificationSessionStatusExpired {
+			verificationSession.Status = models.VerificationSessionStatusExpired
+			if err := h.DB.Save(&verificationSession).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"message": "Failed to update verification session",
+				})
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  models.VerificationSessionStatusExpired,
+			"code":    "VERIFICATION_SESSION_EXPIRED",
+			"message": "This verification session has expired. Please register again.",
+		})
+		return
+	}
+
+	if verificationSession.Status == models.VerificationSessionStatusPending {
+		c.JSON(http.StatusOK, gin.H{
+			"status":    models.VerificationSessionStatusPending,
+			"expiresAt": verificationSession.ExpiresAt,
+		})
+		return
+	}
+
+	if verificationSession.Status == models.VerificationSessionStatusConsumed || verificationSession.ConsumedAt != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  models.VerificationSessionStatusConsumed,
+			"code":    "VERIFICATION_SESSION_CONSUMED",
+			"message": "This verification session has already been used. Please sign in.",
+		})
+		return
+	}
+
+	if verificationSession.Status != models.VerificationSessionStatusVerified || verificationSession.UserID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid verification session",
+		})
+		return
+	}
+
+	// This stores the verified user so a normal login JWT can be issued after consumption succeeds.
+	var user models.User
+
+	// This consumes the verified temporary session in one transaction before returning a JWT.
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&user, *verificationSession.UserID).Error; err != nil {
+			return err
+		}
+
+		consumedAt := now
+		result := tx.Model(&models.VerificationSession{}).
+			Where("id = ?", verificationSession.ID).
+			Where("status = ?", models.VerificationSessionStatusVerified).
+			Where("expires_at > ?", now).
+			Where("consumed_at IS NULL").
+			Updates(map[string]interface{}{
+				"status":      models.VerificationSessionStatusConsumed,
+				"consumed_at": consumedAt,
+			})
+
+		if result.Error != nil {
+			return result.Error
+		}
+
+		if result.RowsAffected == 0 {
+			return errors.New("verification session already consumed")
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if err.Error() == "verification session already consumed" {
+			c.JSON(http.StatusOK, gin.H{
+				"status":  models.VerificationSessionStatusConsumed,
+				"code":    "VERIFICATION_SESSION_CONSUMED",
+				"message": "This verification session has already been used. Please sign in.",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to complete verification session",
+		})
+		return
+	}
+
+	// This signs the normal login JWT after the temporary session has been consumed.
+	signedToken, err := h.createLoginToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to create login token",
+		})
+		return
+	}
+
+	response := loginResponse("Login successful", signedToken, user)
+	response["status"] = models.VerificationSessionStatusVerified
+	c.JSON(http.StatusOK, response)
 }
 
 // ResendVerificationEmail sends a new verification email if the request is allowed.
@@ -378,10 +604,33 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 	// This stores the current time.
 	now := time.Now()
 
-	// This enforces a 2 resend cooldown.
-	if now.Sub(pendingRegistration.VerificationSentAt) < 2*time.Minute {
+	// This blocks duplicate resend requests while the current verification link is still active.
+	if now.Before(pendingRegistration.VerificationExpiresAt) {
+		retryAfterSeconds := int(time.Until(pendingRegistration.VerificationExpiresAt).Seconds())
+		if retryAfterSeconds < 1 {
+			retryAfterSeconds = 1
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"message": genericMessage,
+			"code":              "VERIFICATION_LINK_ALREADY_SENT",
+			"message":           "A verification link has already been sent to this email address.",
+			"retryAfterSeconds": retryAfterSeconds,
+			"expiresAt":         pendingRegistration.VerificationExpiresAt,
+		})
+		return
+	}
+
+	// This enforces the resend cooldown.
+	if now.Sub(pendingRegistration.VerificationSentAt) < resendVerificationCooldown {
+		retryAfterSeconds := int((resendVerificationCooldown - now.Sub(pendingRegistration.VerificationSentAt)).Seconds())
+		if retryAfterSeconds < 1 {
+			retryAfterSeconds = 1
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":              "VERIFICATION_RESEND_COOLDOWN",
+			"message":           genericMessage,
+			"retryAfterSeconds": retryAfterSeconds,
 		})
 		return
 	}
@@ -411,14 +660,46 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 		return
 	}
 
+	// This creates a fresh secure temporary token for the browser requesting the resend.
+	verificationSessionToken, verificationSessionTokenHash, err := security.GenerateVerificationSessionToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to create verification session",
+		})
+		return
+	}
+
 	// This updates the pending registration with the new token details.
 	pendingRegistration.VerificationTokenHash = verificationTokenHash
-	pendingRegistration.VerificationExpiresAt = now.Add(1 * time.Hour)
+	pendingRegistration.VerificationExpiresAt = now.Add(verificationLifetime)
 	pendingRegistration.VerificationSentAt = now
 	pendingRegistration.VerificationDailyCount++
 
-	// This saves the updated pending registration.
-	if err := h.DB.Save(&pendingRegistration).Error; err != nil {
+	// This creates the short-lived verification session for the browser requesting the resend.
+	verificationSession := models.VerificationSession{
+		CreatedAt: now,
+		Email:     pendingRegistration.Email,
+		TokenHash: verificationSessionTokenHash,
+		Status:    models.VerificationSessionStatusPending,
+		UpdatedAt: now,
+		ExpiresAt: pendingRegistration.VerificationExpiresAt,
+	}
+
+	// This saves the new email token, expires previous pending sessions, and creates a fresh browser session.
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&pendingRegistration).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.VerificationSession{}).
+			Where("email = ?", pendingRegistration.Email).
+			Where("status = ?", models.VerificationSessionStatusPending).
+			Update("status", models.VerificationSessionStatusExpired).Error; err != nil {
+			return err
+		}
+
+		return tx.Create(&verificationSession).Error
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Failed to update verification token",
 		})
@@ -435,7 +716,10 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 
 	// This returns the generic success message.
 	c.JSON(http.StatusOK, gin.H{
-		"message": genericMessage,
+		"message":                             genericMessage,
+		"verificationSessionToken":            verificationSessionToken,
+		"verificationSessionExpiresAt":        pendingRegistration.VerificationExpiresAt,
+		"verificationSessionExpiresInSeconds": int(verificationLifetime.Seconds()),
 	})
 }
 
@@ -497,15 +781,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// This creates a new JWT token with user information and an expiry time.
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"email":   user.Email,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	})
-
-	// This signs the JWT token using the secret from the environment variables.
-	signedToken, err := token.SignedString([]byte(h.JWTSecret))
+	// This signs the normal login JWT.
+	signedToken, err := h.createLoginToken(user)
 
 	// This checks whether token signing failed.
 	if err != nil {
@@ -519,15 +796,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// This returns the login token and basic user details to the frontend.
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"token":   signedToken,
-		"user": gin.H{
-			"id":    user.ID,
-			"name":  user.Name,
-			"email": user.Email,
-		},
-	})
+	c.JSON(http.StatusOK, loginResponse("Login successful", signedToken, user))
 }
 
 // Me returns the currently logged-in user's details.
