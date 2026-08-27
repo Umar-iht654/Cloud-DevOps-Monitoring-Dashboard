@@ -74,8 +74,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <PulseIcon className="h-6 w-6" />
         </div>
         <div>
-          <p className="font-semibold tracking-tight text-white">Cloud Monitor</p>
-          <p className="text-xs text-slate-400">Operations console</p>
+          <p className="font-semibold text-white">StatusWatch</p>
+          <p className="text-xs text-slate-400">Service monitoring console</p>
         </div>
       </div>
 
@@ -266,7 +266,7 @@ export function AppLayout() {
             <div className="brand-pulse flex h-8 w-8 items-center justify-center rounded-lg bg-[#07111f] text-cyan-300">
               <PulseIcon className="h-5 w-5" />
             </div>
-            <span className="truncate font-semibold">Cloud Monitor</span>
+            <span className="truncate font-semibold">StatusWatch</span>
           </div>
         </header>
 

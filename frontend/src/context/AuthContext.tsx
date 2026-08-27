@@ -10,14 +10,15 @@ import {
 import axios from "axios";
 import * as authApi from "../api/auth";
 import { TOKEN_STORAGE_KEY } from "../api/client";
-import type { User } from "../types/api";
+import type { LoginResponse, RegisterResponse, User } from "../types/api";
 
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<RegisterResponse>;
+  completeLogin: (data: LoginResponse) => void;
   logout: () => void;
 }
 
@@ -62,9 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }, []);
 
+  const completeLogin = useCallback((data: LoginResponse) => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+    setUser(data.user);
+  }, []);
+
   const register = useCallback(
     async (name: string, email: string, password: string) => {
-      await authApi.register(name, email, password);
+      const { data } = await authApi.register(name, email, password);
+      return data;
     },
     [],
   );
@@ -76,9 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       login,
       register,
+      completeLogin,
       logout,
     }),
-    [user, isLoading, login, register, logout],
+    [user, isLoading, login, register, completeLogin, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

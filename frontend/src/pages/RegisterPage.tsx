@@ -1,11 +1,33 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import {
+  VERIFICATION_SESSION_EXPIRES_AT_STORAGE_KEY,
+  VERIFICATION_SESSION_TOKEN_STORAGE_KEY,
+} from "../api/auth";
 import { getApiErrorMessage } from "../api/client";
 import { AuthLayout } from "../components/layout/AuthLayout";
-import { ArrowRightIcon } from "../components/ui/Icons";
+import { ArrowRightIcon, CheckIcon, CloseIcon } from "../components/ui/Icons";
 import { FormField } from "../components/ui/FormField";
 import { FullPageLoader } from "../components/ui/FullPageLoader";
 import { useAuth } from "../context/AuthContext";
+
+const passwordValidationMessage =
+  "Password must be at least 7 characters long and contain at least one uppercase letter and one number.";
+
+const getPasswordRequirements = (password: string) => [
+  {
+    label: "At least 7 characters",
+    met: password.length >= 7,
+  },
+  {
+    label: "One uppercase letter",
+    met: /\p{Lu}/u.test(password),
+  },
+  {
+    label: "One number",
+    met: /\p{Nd}/u.test(password),
+  },
+];
 
 export function RegisterPage() {
   const { register, isAuthenticated, isLoading } = useAuth();
@@ -24,6 +46,8 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const passwordRequirements = getPasswordRequirements(password);
+  const isPasswordValid = passwordRequirements.every((requirement) => requirement.met);
 
   useEffect(() => {
     if (error) errorRef.current?.focus();
@@ -52,8 +76,8 @@ export function RegisterPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       nextErrors.email = "Enter a valid email address.";
     }
-    if (normalizedPassword.length < 7) {
-      nextErrors.password = "Use at least 7 characters.";
+    if (!isPasswordValid) {
+      nextErrors.password = passwordValidationMessage;
     } else if (password !== normalizedPassword) {
       nextErrors.password = "Password cannot start or end with spaces.";
     }
@@ -74,7 +98,12 @@ export function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await register(normalizedName, normalizedEmail, password);
+      const registration = await register(normalizedName, normalizedEmail, password);
+      sessionStorage.setItem(VERIFICATION_SESSION_TOKEN_STORAGE_KEY, registration.verificationSessionToken);
+      sessionStorage.setItem(
+        VERIFICATION_SESSION_EXPIRES_AT_STORAGE_KEY,
+        registration.verificationSessionExpiresAt,
+      );
       navigate("/verify-email", {
         replace: true,
         state: { email: normalizedEmail, registrationStarted: true },
@@ -156,7 +185,7 @@ export function RegisterPage() {
           minLength={7}
           disabled={submitting}
           error={fieldErrors.password}
-          hint="Use at least 7 characters."
+          aria-describedby="password-requirements"
           passwordToggle
           value={password}
           onChange={(event) => {
@@ -169,6 +198,31 @@ export function RegisterPage() {
             setError("");
           }}
         />
+        <ul id="password-requirements" className="-mt-2 space-y-1.5 text-xs leading-5 text-slate-600">
+          {passwordRequirements.map((requirement) => (
+            <li
+              key={requirement.label}
+              className={`flex items-center gap-2 ${
+                requirement.met ? "text-emerald-700" : "text-slate-500"
+              }`}
+            >
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                  requirement.met
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-slate-300 bg-slate-50"
+                }`}
+                aria-hidden="true"
+              >
+                {requirement.met ? <CheckIcon className="h-3 w-3" /> : <CloseIcon className="h-3 w-3" />}
+              </span>
+              <span>
+                <span className="font-medium">{requirement.met ? "Met:" : "Not met:"}</span>{" "}
+                {requirement.label}
+              </span>
+            </li>
+          ))}
+        </ul>
         <FormField
           id="confirm-password"
           label="Confirm password"
