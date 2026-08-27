@@ -18,6 +18,8 @@ type VerificationStatus = "awaiting" | "verifying" | "verified" | "failed" | "ex
 
 const RESEND_COOLDOWN_SECONDS = 180;
 const VERIFICATION_POLL_INTERVAL_MS = 3000;
+const EXPIRED_RECOVERY_MESSAGE =
+  "This verification link and sign-in session have expired. Request a new verification link to continue.";
 
 function formatCooldown(seconds: number) {
   const safeSeconds = Math.max(0, seconds);
@@ -25,6 +27,12 @@ function formatCooldown(seconds: number) {
   const remainingSeconds = safeSeconds % 60;
 
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+}
+
+function isRecoverablePollingError(error: unknown) {
+  if (!axios.isAxiosError(error)) return false;
+
+  return !error.response || error.response.status >= 500;
 }
 
 interface VerificationNavigationState {
@@ -117,7 +125,7 @@ export function VerifyEmailPage() {
     const expireSession = () => {
       clearVerificationSession();
       setStatus("expired");
-      setVerificationMessage("This verification link and sign-in session have expired. Please register again to continue.");
+      setVerificationMessage(EXPIRED_RECOVERY_MESSAGE);
     };
 
     const expiryTime = new Date(verificationSessionExpiresAt).getTime();
@@ -165,16 +173,20 @@ export function VerifyEmailPage() {
         setStatus("expired");
         setVerificationMessage(
           data.code === "VERIFICATION_SESSION_EXPIRED"
-            ? "This verification link and sign-in session have expired. Please register again to continue."
-            : (data.message ?? "This verification session can no longer be used. Please register again to continue."),
+            ? EXPIRED_RECOVERY_MESSAGE
+            : (data.message ?? "This verification session can no longer be used. Request a new verification link to continue."),
         );
       } catch (requestError) {
         if (!isActive) return;
 
+        if (isRecoverablePollingError(requestError)) {
+          return;
+        }
+
         clearVerificationSession();
         setStatus("expired");
         setVerificationMessage(
-          getApiErrorMessage(requestError, "This verification session can no longer be used. Please register again to continue."),
+          getApiErrorMessage(requestError, "This verification session can no longer be used. Request a new verification link to continue."),
         );
       } finally {
         pollingRequestInFlightRef.current = false;
@@ -252,7 +264,11 @@ export function VerifyEmailPage() {
         setShowLinkAlreadySentNotice(true);
         setCooldownDeadline(Date.now() + (data.retryAfterSeconds ?? RESEND_COOLDOWN_SECONDS) * 1000);
 
-        clearVerificationSession();
+        if (verificationSessionToken && data.expiresAt) {
+          sessionStorage.setItem(VERIFICATION_SESSION_EXPIRES_AT_STORAGE_KEY, data.expiresAt);
+          setVerificationSessionExpiresAt(data.expiresAt);
+        }
+
         return;
       }
 
@@ -291,7 +307,7 @@ export function VerifyEmailPage() {
     }
   };
 
-  const showResendForm = status === "awaiting" || status === "failed";
+  const showResendForm = status === "awaiting" || status === "failed" || status === "expired";
   const isRegistrationStart = status === "awaiting" && navigationState?.registrationStarted;
   const isCooldownActive = cooldownRemaining > 0;
   const resendButtonDisabled = resending || isCooldownActive || alreadyVerified;
@@ -341,13 +357,15 @@ export function VerifyEmailPage() {
         <section>
           <div className="mb-7">
             <p className="mb-2 text-sm font-semibold text-cyan-700">
-              {status === "failed" ? "Verification link unavailable" : "Email verification"}
+              {status === "failed" || status === "expired" ? "Verification link unavailable" : "Email verification"}
             </p>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-              {status === "failed" ? "This link can’t be used" : "Check your inbox"}
+              {status === "expired" ? "Request a new verification link" : status === "failed" ? "This link can’t be used" : "Check your inbox"}
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-500">
-              {status === "failed"
+              {status === "expired"
+                ? (verificationMessage || EXPIRED_RECOVERY_MESSAGE)
+                : status === "failed"
                 ? "The link may have expired or already been used. Request another one to continue."
                 : isRegistrationStart || linkAlreadySent
                   ? "We sent a verification link to your email. Open it to finish creating your account."
@@ -469,26 +487,6 @@ export function VerifyEmailPage() {
         </section>
       )}
 
-      {status === "expired" && (
-        <section className="py-3 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
-            <AlertIcon className="h-7 w-7" />
-          </div>
-          <p className="mt-6 text-sm font-semibold text-amber-700">Verification session expired</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Verification session expired</h1>
-          <p role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-500">
-            {verificationMessage ||
-              "This verification link and sign-in session have expired. Please register again to continue."}
-          </p>
-          <Link
-            to="/register"
-            className="primary-action mt-8 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#07111f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 focus:outline-none focus:ring-4 focus:ring-cyan-500/20"
-          >
-            Register again
-            <ArrowRightIcon className="h-4 w-4" />
-          </Link>
-        </section>
-      )}
     </AuthLayout>
   );
 }

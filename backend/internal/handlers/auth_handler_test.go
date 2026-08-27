@@ -373,7 +373,7 @@ func TestVerificationSessionStatusReturnsPendingForActiveSession(t *testing.T) {
 	}
 }
 
-func TestVerificationSessionStatusExchangesVerifiedSessionForJWTAndConsumesIt(t *testing.T) {
+func TestVerificationSessionStatusExchangesVerifiedSessionForJWTAndAllowsSameTokenRetry(t *testing.T) {
 	_, router, db := setupAuthHandlerTest(t)
 	registerResponse := performRegisterRequest(t, router, "exchange@example.com")
 	registerPayload := decodeAnyJSONResponse(t, registerResponse)
@@ -429,8 +429,8 @@ func TestVerificationSessionStatusExchangesVerifiedSessionForJWTAndConsumesIt(t 
 		t.Fatalf("failed to reload verification session: %v", err)
 	}
 
-	if session.Status != models.VerificationSessionStatusConsumed || session.ConsumedAt == nil {
-		t.Fatal("expected verification session to be consumed after exchange")
+	if session.Status != models.VerificationSessionStatusVerified || session.ConsumedAt != nil {
+		t.Fatal("expected verification session to remain verified for retry until expiry")
 	}
 
 	secondExchangeResponse := performVerificationSessionStatusRequest(t, router, rawSessionToken)
@@ -440,12 +440,12 @@ func TestVerificationSessionStatusExchangesVerifiedSessionForJWTAndConsumesIt(t 
 		t.Fatalf("expected status %d, got %d", http.StatusOK, secondExchangeResponse.Code)
 	}
 
-	if secondPayload["status"] != models.VerificationSessionStatusConsumed {
-		t.Fatalf("expected consumed status, got %v", secondPayload["status"])
+	if secondPayload["status"] != models.VerificationSessionStatusVerified {
+		t.Fatalf("expected verified status on retry, got %v", secondPayload["status"])
 	}
 
-	if _, hasToken := secondPayload["token"]; hasToken {
-		t.Fatal("consumed verification session issued another JWT")
+	if secondPayload["token"] == "" {
+		t.Fatal("expected retry with same verification session token to issue a JWT")
 	}
 }
 

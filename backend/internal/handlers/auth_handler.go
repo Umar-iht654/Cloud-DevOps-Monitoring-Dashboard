@@ -449,7 +449,7 @@ func (h *AuthHandler) CheckVerificationSessionStatus(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  models.VerificationSessionStatusExpired,
 			"code":    "VERIFICATION_SESSION_EXPIRED",
-			"message": "This verification session has expired. Please register again.",
+			"message": "This verification session has expired. Please request a new verification email.",
 		})
 		return
 	}
@@ -478,47 +478,12 @@ func (h *AuthHandler) CheckVerificationSessionStatus(c *gin.Context) {
 		return
 	}
 
-	// This stores the verified user so a normal login JWT can be issued after consumption succeeds.
+	// This stores the verified user so a normal login JWT can be issued for this exact browser session.
 	var user models.User
 
-	// This consumes the verified temporary session in one transaction before returning a JWT.
-	err := h.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&user, *verificationSession.UserID).Error; err != nil {
-			return err
-		}
-
-		consumedAt := now
-		result := tx.Model(&models.VerificationSession{}).
-			Where("id = ?", verificationSession.ID).
-			Where("status = ?", models.VerificationSessionStatusVerified).
-			Where("expires_at > ?", now).
-			Where("consumed_at IS NULL").
-			Updates(map[string]interface{}{
-				"status":      models.VerificationSessionStatusConsumed,
-				"consumed_at": consumedAt,
-			})
-
-		if result.Error != nil {
-			return result.Error
-		}
-
-		if result.RowsAffected == 0 {
-			return errors.New("verification session already consumed")
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		if err.Error() == "verification session already consumed" {
-			c.JSON(http.StatusOK, gin.H{
-				"status":  models.VerificationSessionStatusConsumed,
-				"code":    "VERIFICATION_SESSION_CONSUMED",
-				"message": "This verification session has already been used. Please sign in.",
-			})
-			return
-		}
-
+	// Verified sessions remain exchangeable by the same token until their original short expiry.
+	// This makes the response safe to retry if the first JWT response is lost in transit.
+	if err := h.DB.First(&user, *verificationSession.UserID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Failed to complete verification session",
 		})
