@@ -1,191 +1,177 @@
-# Cloud Service Monitoring Dashboard
+# StatusWatch
 
-A Dockerised cloud monitoring platform for tracking service uptime, response times, failures, alerts and reliability metrics using Go, PostgreSQL, Prometheus and Grafana.
+A production-deployed cloud service monitoring platform for tracking uptime, response times, failures, alerts and reliability metrics using Go, React, PostgreSQL, Prometheus and Grafana.
+
+Live Demo: https://statuswatch.duckdns.org
 
 ## Contributors
 
-This project is currently being developed collaboratively as a portfolio project by:
+Built collaboratively by:
 
 - Umar Ihtesham
 - Ateeq Ur Rehman
 
 ## Overview
 
-Modern applications often rely on multiple services such as frontend websites, backend APIs, authentication systems, payment services and admin panels. If one of these services becomes slow, unreliable or unavailable, it can affect users and business operations.
+StatusWatch is a full-stack monitoring platform for tracking the availability and performance of web services and APIs.
 
-This monitoring dashboard provides a central place to track the health of services. Users can add services, automatically check whether they are online, slow or down, record response times, view failure and alert history, monitor reliability over time and analyse longer-term monitoring reports.
+Users can add services to monitor, automatically run health checks, analyse uptime and latency, receive downtime alerts, inspect historical incidents and generate reliability reports from a central dashboard.
 
-This project demonstrates practical backend development, frontend development, DevOps fundamentals, monitoring, containerisation, CI/CD, database design and production-focused software engineering.
+The project demonstrates practical software engineering across backend development, frontend development, observability, security, containerisation, CI/CD and cloud deployment.
 
-## Key Features
+## Features
 
-- **Service Monitoring**
-  - Add, edit and delete monitored services.
-  - Automatically track service health.
-
-- **Health Checks**
-  - Record HTTP status codes, response times and timestamps.
-  - Configurable service check intervals.
-  - Store historical monitoring data with configurable retention.
-
-- **Status Detection**
-  - Classify services as online, slow or down.
-
-- **Dashboard**
-  - View total services, online services, slow services, down services and average uptime.
-  - View live service health information.
-
-- **Service Detail Page**
-  - View recent health checks.
-  - View response-time history.
-  - View uptime percentage and failure count.
-  - View service-specific alert history.
-
-- **Authentication**
-  - User registration and login.
-  - JWT-based protected routes.
-  - User-owned monitored services.
-  - Email verification flow.
-
-- **Alerts**
-  - Automatically create downtime alerts.
-  - View global and service-specific alert history.
-  - Track repeated outages and recoveries.
-
-- **Monitoring Reports**
-  - 7-day and 30-day monitoring reports.
-  - Overall uptime, total checks, failed checks and response-time summaries.
-  - Best and worst service reliability.
-  - Daily uptime, response-time and failure charts.
-  - Service reliability comparison.
-
-- **Observability**
-  - Prometheus metrics.
-  - Grafana dashboards.
-
-- **Dockerised Setup**
-  - Run PostgreSQL, backend, frontend, Prometheus and Grafana together using Docker Compose.
-  - Container health checks and startup dependencies.
-
-- **Continuous Integration**
-  - Frontend lint and production build checks.
-  - Backend test and build checks.
-  - Backend and frontend Docker image build checks using GitHub Actions.
+- Service Monitoring - automatically monitor websites and APIs at configurable intervals.
+- Health Checks - record HTTP status codes, response times, failures and timestamps.
+- Status Detection - classify services as Online, Slow or Down.
+- Dashboard - view uptime, latency, service health and system-wide monitoring statistics.
+- Service Analytics - inspect response-time history, failure counts and uptime percentages.
+- Downtime Alerts - automatically create alerts and send email notifications when services fail.
+- Monitoring Reports - analyse 7-day and 30-day uptime, failures, latency and reliability trends.
+- Authentication - JWT authentication, email verification and protected user-owned resources.
+- Cross-device Verification - verify an account from a phone while automatically completing sign-in on the original browser.
+- Observability - expose Prometheus metrics and visualise application behaviour through Grafana.
+- Data Retention and Aggregation - retain recent raw checks while generating hourly and daily monitoring summaries.
+- Containerisation - run the full application stack using Docker Compose.
+- CI/CD - automatically test and build frontend, backend and Docker images with GitHub Actions.
+- Production Deployment - deployed to an Oracle Cloud VM behind Caddy with HTTPS.
 
 ## Tech Stack
 
 | Area | Technology |
 |---|---|
 | Backend | Go, Gin, GORM |
-| Frontend | React, Vite, TypeScript, Tailwind CSS, Recharts |
+| Frontend | React, TypeScript, Vite, Tailwind CSS, Recharts |
 | Database | PostgreSQL |
 | Authentication | JWT |
 | Monitoring | Prometheus |
 | Visualisation | Grafana |
-| Containerisation | Docker + Docker Compose |
+| Containerisation | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
-| Cloud | Planned |
+| Reverse Proxy | Caddy |
+| Cloud | Oracle Cloud Infrastructure |
+| HTTPS | Automatic TLS via Caddy |
 
-## Application Pages
+## Architecture
 
-- Login
-- Register
-- Email Verification
-- Dashboard
-- Add/Edit Service
-- Service Detail Page
-- Alerts
-- Reports
-- Grafana Metrics Dashboard
+```text
+                         Internet
+                            |
+                            v
+                     Caddy / HTTPS
+                            |
+                +-----------+-----------+
+                |                       |
+                v                       v
+          React Frontend            Go API
+                                       |
+                         +-------------+-------------+
+                         |             |             |
+                         v             v             v
+                    PostgreSQL    Health Checker  Prometheus
+                                                     |
+                                                     v
+                                                   Grafana
+```
 
-## Database Models
+The background monitoring worker periodically checks registered services and stores health-check results in PostgreSQL. Aggregated data is used by the dashboard and reports, while application metrics are exposed to Prometheus and visualised through Grafana.
 
-The application uses the following main models:
+## Production Deployment
 
-- **User** — stores account, authentication and verification details.
-- **Service** — stores monitored service details such as name, URL, expected status code, check interval and slow response threshold.
-- **HealthCheck** — stores recorded monitoring checks including status, HTTP status code, response time and timestamp.
-- **Alert** — stores downtime alert history and service failure events.
+StatusWatch is deployed on an Oracle Cloud Infrastructure VM using Docker Compose.
 
-## Current Progress
+Production traffic flows through Caddy, which provides:
 
-The core monitoring platform is now functional.
+- HTTPS/TLS
+- HTTP to HTTPS redirects
+- reverse proxy routing
+- frontend and API routing
 
-Implemented:
+Internal services such as PostgreSQL and Prometheus are not exposed publicly. Grafana administration is accessed through an SSH tunnel.
 
-- Go backend and React frontend.
-- PostgreSQL database.
-- JWT authentication.
-- User registration and login.
-- Email verification flow.
-- Protected service CRUD API.
-- Automatic background health checks.
-- Health-check history.
-- Dashboard summary metrics.
-- Service detail pages.
-- Alert history.
-- 7-day and 30-day monitoring reports.
-- Prometheus metrics.
-- Grafana dashboards.
-- Full Docker Compose stack.
-- Frontend and backend Docker images.
-- GitHub Actions CI for frontend, backend and Docker builds.
+## Engineering Highlights
 
-Remaining work includes production email delivery, additional automated testing, final polish and cloud deployment.
+### Secure Authentication
 
-## Development Plan
+- JWT-based authentication
+- password hashing
+- protected routes
+- user-level data isolation
+- email verification
+- verification token expiry
+- rate-limited verification resends
+- secure temporary verification sessions for cross-device auto-login
 
-1. Set up the Go backend and React frontend. ✅
-2. Design the PostgreSQL database schema. ✅
-3. Implement authentication and protected routes. ✅
-4. Implement service creation and management. ✅
-5. Create the background health checker. ✅
-6. Store health-check history. ✅
-7. Build the dashboard and service detail pages. ✅
-8. Add alerts and alert history. ✅
-9. Add monitoring reports and analytics. ✅
-10. Expose Prometheus metrics. ✅
-11. Connect Prometheus and Grafana. ✅
-12. Dockerise the frontend and backend. ✅
-13. Run the full stack through Docker Compose. ✅
-14. Add GitHub Actions CI. ✅
-15. Configure production email delivery.
-16. Expand automated testing.
-17. Deploy the project to a cloud virtual machine.
+### Monitoring Pipeline
 
-## Minimum Viable Product
+```text
+Service
+  |
+  v
+Background health checker
+  |
+  v
+HTTP request + latency measurement
+  |
+  v
+Online / Slow / Down classification
+  |
+  v
+PostgreSQL
+  |
+  v
+Dashboard / Alerts / Reports
+```
 
-The MVP includes:
+### Reliability Data
 
-- Authentication
-- Email verification
-- Service management
-- Automatic health checks
-- Online / Slow / Down status detection
-- Health-check history
-- Uptime percentage calculation
-- Dashboard
-- Alerts
-- Monitoring reports
-- Service detail pages
-- Docker Compose setup
-- Prometheus metrics
-- Grafana dashboards
-- GitHub Actions CI
+Raw monitoring checks are retained for recent analysis while hourly and daily summaries preserve longer-term reliability information without indefinitely growing the raw health-check table.
+
+### Observability
+
+The backend exposes Prometheus metrics which are collected by Prometheus and displayed through provisioned Grafana dashboards.
+
+## CI
+
+GitHub Actions validates changes by running:
+
+- frontend linting
+- frontend production builds
+- backend tests
+- backend builds
+- frontend Docker builds
+- backend Docker builds
 
 ## Future Improvements
 
-- Public status page
-- Incident timeline
+The core platform is complete. Potential future improvements include:
+
+- bounded worker pool for concurrent health checks
+- improved scheduling for large numbers of monitored services
+- additional database indexes and query optimisation
+- distributed monitoring workers
+- queue-based monitoring jobs
+- load and performance testing
+- public service status pages
 - Slack or Discord notifications
-- CSV report export
-- Cloud storage for reports
-- Advanced analytics
-- Additional report ranges
-- Automated frontend test suite
-- Extended backend test coverage
-- Cloud deployment
+- CSV or PDF report exports
+- scheduled email reports
+- expanded automated frontend testing
 
-## Goal
+## Running Locally
 
-The goal of this project is to build a realistic, deployable Cloud Service Monitoring Dashboard that demonstrates real-world software engineering skills, including backend development, frontend development, service monitoring, Docker, PostgreSQL, Prometheus, Grafana, CI/CD and collaborative GitHub workflows.
+```bash
+git clone https://github.com/Umar-iht654/Cloud-Service-Monitoring-Dashboard.git
+cd Cloud-Service-Monitoring-Dashboard
+docker compose up -d --build
+```
+
+Frontend: http://localhost:3000
+
+Backend: http://localhost:8080
+
+Grafana: http://localhost:3001
+
+## Purpose
+
+StatusWatch was built as a portfolio project to demonstrate the design, implementation and deployment of a production-style monitoring system using modern full-stack and DevOps technologies.
