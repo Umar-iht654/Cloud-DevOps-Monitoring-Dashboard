@@ -158,20 +158,6 @@ The core platform is complete. Potential future improvements include:
 - scheduled email reports
 - expanded automated frontend testing
 
-## Running Locally
-
-```bash
-git clone https://github.com/Umar-iht654/Cloud-Service-Monitoring-Dashboard.git
-cd Cloud-Service-Monitoring-Dashboard
-docker compose up -d --build
-```
-
-Frontend: http://localhost:3000
-
-Backend: http://localhost:8080
-
-Grafana: http://localhost:3001
-
 ## Purpose
 
 StatusWatch was built as a portfolio project to demonstrate the design, implementation and deployment of a production-style monitoring system using modern full-stack and DevOps technologies.
