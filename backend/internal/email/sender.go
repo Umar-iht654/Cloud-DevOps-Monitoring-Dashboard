@@ -68,7 +68,7 @@ func (s *Sender) SendVerificationEmail(toEmail string, token string) error {
 	}
 
 	// This creates the email subject.
-	subject := "Verify your Cloud Monitor email address"
+	subject := "Verify your StatusWatch email address"
 
 	// This escapes the verification URL before placing it into HTML.
 	safeVerificationURL := html.EscapeString(verificationURL)
@@ -88,7 +88,7 @@ func (s *Sender) SendVerificationEmail(toEmail string, token string) error {
                   Verify your email
                 </h1>
                 <p style="margin:8px 0 0; color:#cbd5e1; font-size:14px; line-height:1.6;">
-                  Finish creating your Cloud Monitor account.
+                  Finish creating your StatusWatch account.
                 </p>
               </td>
             </tr>
@@ -96,7 +96,7 @@ func (s *Sender) SendVerificationEmail(toEmail string, token string) error {
             <tr>
               <td style="padding:32px;">
                 <p style="margin:0 0 16px; font-size:16px; line-height:1.6;">
-                  Welcome to <strong>Cloud Monitor</strong>.
+                  Welcome to <strong>StatusWatch</strong>.
                 </p>
 
                 <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#4b5563;">
@@ -124,14 +124,14 @@ func (s *Sender) SendVerificationEmail(toEmail string, token string) error {
                 <div style="height:1px; background:#e5e7eb; margin:28px 0;"></div>
 
                 <p style="margin:0; font-size:13px; line-height:1.6; color:#6b7280;">
-                  This verification link will expire soon. If you did not create a Cloud Monitor account, you can ignore this email.
+                  This verification link will expire soon. If you did not create a StatusWatch account, you can ignore this email.
                 </p>
               </td>
             </tr>
           </table>
 
           <p style="margin:18px 0 0; font-size:12px; color:#94a3b8;">
-            Cloud Monitor · Service monitoring and reliability alerts
+            StatusWatch · Service monitoring and reliability alerts
           </p>
         </td>
       </tr>
@@ -198,7 +198,7 @@ func (s *Sender) SendDowntimeAlertEmail(toEmail string, serviceName string, serv
             <tr>
               <td style="padding:32px;">
                 <p style="margin:0 0 20px; font-size:15px; line-height:1.6; color:#4b5563;">
-                  Cloud Monitor detected that one of your monitored services has failed its health check.
+                  StatusWatch detected that one of your monitored services has failed its health check.
                 </p>
 
                 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 24px;">
@@ -250,7 +250,7 @@ func (s *Sender) SendDowntimeAlertEmail(toEmail string, serviceName string, serv
           </table>
 
           <p style="margin:18px 0 0; font-size:12px; color:#94a3b8;">
-            Cloud Monitor · Automated downtime notification
+            StatusWatch · Automated downtime notification
           </p>
         </td>
       </tr>
@@ -281,7 +281,7 @@ func (s *Sender) sendHTMLEmail(toEmail string, subject string, body string) erro
 
 	// This creates the full raw email message.
 	message := []byte(
-		"From: Cloud Monitor <" + cleanFrom + ">\r\n" +
+		"From: StatusWatch <" + cleanFrom + ">\r\n" +
 			"To: " + cleanTo + "\r\n" +
 			"Subject: " + cleanSubject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
