@@ -52,6 +52,25 @@ The project demonstrates practical software engineering across backend developme
 | Cloud | Oracle Cloud Infrastructure |
 | HTTPS | Automatic TLS via Caddy |
 
+## Screenshots
+
+A quick look at the main StatusWatch monitoring, alerting, reporting, and observability interfaces.
+
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Service Details
+![Service Details](docs/screenshots/service-details.png)
+
+### Alerts
+![Alerts](docs/screenshots/alerts.png)
+
+### Reports
+![Reports](docs/screenshots/reports.png)
+
+### Grafana
+![Grafana](docs/screenshots/grafana-dashboard.png)
+
 ## Architecture
 
 ```text
