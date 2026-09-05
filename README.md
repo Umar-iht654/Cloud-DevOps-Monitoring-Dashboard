@@ -2,7 +2,7 @@
 
 A production-deployed cloud service monitoring platform for tracking uptime, response times, failures, alerts and reliability metrics using Go, React, PostgreSQL, Prometheus and Grafana.
 
-Live Demo: https://statuswatch.duckdns.org
+Live Demo: https://statuswatch.co.uk
 
 ## Contributors
 
@@ -51,6 +51,25 @@ The project demonstrates practical software engineering across backend developme
 | Reverse Proxy | Caddy |
 | Cloud | Oracle Cloud Infrastructure |
 | HTTPS | Automatic TLS via Caddy |
+
+## Screenshots
+
+A quick look at the main StatusWatch monitoring, alerting, reporting, and observability interfaces.
+
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Service Details
+![Service Details](docs/screenshots/service-details.png)
+
+### Alerts
+![Alerts](docs/screenshots/alerts.png)
+
+### Reports
+![Reports](docs/screenshots/reports.png)
+
+### Grafana
+![Grafana](docs/screenshots/grafana-dashboard.png)
 
 ## Architecture
 
