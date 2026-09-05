@@ -2,7 +2,7 @@
 
 A production-deployed cloud service monitoring platform for tracking uptime, response times, failures, alerts and reliability metrics using Go, React, PostgreSQL, Prometheus and Grafana.
 
-Live Demo: https://statuswatch.duckdns.org
+Live Demo: https://statuswatch.co.uk
 
 ## Contributors
 
